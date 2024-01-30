@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	github.com/alecthomas/kingpin v2.2.6+incompatible
-	github.com/coreos/go-systemd/v22 v22.0.0
+	github.com/coreos/go-systemd/v22 v22.5.0
 	github.com/docker/docker v1.13.1
 	github.com/nxadm/tail v1.4.8
 	github.com/prometheus/client_golang v1.4.1
