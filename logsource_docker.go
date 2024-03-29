@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kingpin"
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 )
 
@@ -26,12 +26,12 @@ type DockerLogSource struct {
 // provides. See https://pkg.go.dev/github.com/docker/docker/client
 type DockerClient interface {
 	io.Closer
-	ContainerLogs(context.Context, string, types.ContainerLogsOptions) (io.ReadCloser, error)
+	ContainerLogs(context.Context, string, container.LogsOptions) (io.ReadCloser, error)
 }
 
 // NewDockerLogSource returns a log source for reading Docker logs.
 func NewDockerLogSource(ctx context.Context, c DockerClient, containerID string) (*DockerLogSource, error) {
-	r, err := c.ContainerLogs(ctx, containerID, types.ContainerLogsOptions{
+	r, err := c.ContainerLogs(ctx, containerID, container.LogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
 		Follow:     true,
