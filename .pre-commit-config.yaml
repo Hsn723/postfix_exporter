@@ -1,7 +1,7 @@
 default_stages: [commit]
 repos:
   - repo: https://github.com/golangci/golangci-lint
-    rev: v1.55.2
+    rev: v1.60.2
     hooks:
       - id: golangci-lint
   - repo: https://github.com/pre-commit/pre-commit-hooks
