@@ -10,7 +10,7 @@ test: libsystemd-dev
 	go test -coverprofile cover.out -count=1 -race -p 4 -v ./...
 
 .PHONY: lint
-lint:
+lint: libsystemd-dev
 	if [ -z "$(shell which pre-commit)" ]; then pip3 install pre-commit; fi
 	pre-commit install
 	pre-commit run --all-files
