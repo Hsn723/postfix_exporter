@@ -7,7 +7,7 @@ toolchain go1.22.4
 require (
 	github.com/alecthomas/kingpin v2.2.6+incompatible
 	github.com/coreos/go-systemd/v22 v22.5.0
-	github.com/docker/docker v27.2.1+incompatible
+	github.com/docker/docker v27.3.0+incompatible
 	github.com/nxadm/tail v1.4.11
 	github.com/prometheus/client_golang v1.20.4
 	github.com/prometheus/client_model v0.6.1
