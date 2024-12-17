@@ -19,7 +19,7 @@ updates:
       otel:
         patterns:
           - "^github.com/prometheus/.*"
-          - "^go.opentelemetry.io/.*"
+          - "^go.opentelemetry.io/*"
       golang:
         patterns:
           - "^golang.org/x/.*"
