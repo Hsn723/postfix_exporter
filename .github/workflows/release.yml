@@ -31,7 +31,7 @@ jobs:
       - name: Check if tag exists
         id: tag
         run: |
-          TAG="{{ steps.version.outputs.VERSION }}"
+          TAG="${{ steps.version.outputs.VERSION }}"
           if git rev-parse "$TAG" >/dev/null 2>&1; then
             echo "release=false" >> $GITHUB_OUTPUT
           else
@@ -40,7 +40,7 @@ jobs:
       - name: Create tag
         if: steps.tag.outputs.release == 'true'
         run: |
-          TAG="{{ steps.version.outputs.VERSION }}"
+          TAG="${{ steps.version.outputs.VERSION }}"
           git tag "$TAG"
           git push origin "$TAG"
   release:
