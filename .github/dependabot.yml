@@ -4,8 +4,6 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
-    reviewers:
-      - "Hsn723"
     allow:
       - dependency-type: "all"
     groups:
@@ -39,11 +37,7 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    reviewers:
-      - "Hsn723"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "daily"
-    reviewers:
-      - "Hsn723"
