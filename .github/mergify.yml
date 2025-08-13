@@ -10,7 +10,11 @@ pull_request_rules:
   - name: Automatic merge for dependabot
     conditions:
       - author~=^dependabot\[bot\]$
-      - title~=^Bump (([^\s]+ from ([\d]+)\.([\d]+)\..+ to \3\.)|the [^\s]+ group with \d+ update)
+      - or:
+        - files~=^go\.(mod|sum)$
+        - files~=^Dockerfile$
+        - files~=^\.github/workflows/.*\.ya?ml$
+      - -files~=^(?!go\.(mod|sum)$|Dockerfile$|\.github/workflows/.*\.ya?ml$).*
     actions:
       review:
         type: APPROVE
@@ -20,6 +24,7 @@ pull_request_rules:
     conditions:
       - author~=^pre-commit-ci\[bot\]$
       - title~=^\[pre-commit\.ci\] pre-commit autoupdate$
+      - files~=^\.pre-commit-config\.yaml$
     actions:
       review:
         type: APPROVE
