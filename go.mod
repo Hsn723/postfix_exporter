@@ -6,7 +6,7 @@ toolchain go1.24.1
 
 require (
 	github.com/alecthomas/kingpin/v2 v2.4.0
-	github.com/coreos/go-systemd/v22 v22.5.0
+	github.com/coreos/go-systemd/v22 v22.6.0
 	github.com/docker/docker v28.3.3+incompatible
 	github.com/nxadm/tail v1.4.11
 	github.com/prometheus/client_golang v1.23.0
@@ -61,7 +61,7 @@ require (
 	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
-	google.golang.org/protobuf v1.36.7 // indirect
+	google.golang.org/protobuf v1.36.8 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
