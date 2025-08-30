@@ -46,6 +46,18 @@ func (s *Showq) collectTextualShowqFromScanner(file io.Reader) error {
 	scanner.Split(bufio.ScanLines)
 	queueSizes := make(map[string]float64)
 
+	// Remove metrics from size and age histograms and re-initialize them. HistogramVec
+	// is intended to capture data streams. Showq however always returns all emails
+	// currently queued, therefore we need to reset the histograms before every collect.
+	for _, q := range []string{"active", "hold", "other"} {
+		// Delete histogram metrics
+		s.sizeHistogram.DeleteLabelValues(q)
+		s.ageHistogram.DeleteLabelValues(q)
+		// Re-initialize histograms to ensure all labels are present.
+		s.sizeHistogram.WithLabelValues(q)
+		s.ageHistogram.WithLabelValues(q)
+	}
+
 	location, err := time.LoadLocation("Local")
 	if err != nil {
 		log.Println(err)
@@ -132,6 +144,18 @@ func (s *Showq) collectBinaryShowqFromScanner(file io.Reader) error {
 	scanner := bufio.NewScanner(file)
 	scanner.Split(ScanNullTerminatedEntries)
 	queueSizes := make(map[string]float64)
+
+	// Remove metrics from size and age histograms and re-initialize them. HistogramVec
+	// is intended to capture data streams. Showq however always returns all emails
+	// currently queued, therefore we need to reset the histograms before every collect.
+	for _, q := range []string{"active", "deferred", "hold", "incoming", "maildrop"} {
+		// Delete histogram metrics
+		s.sizeHistogram.DeleteLabelValues(q)
+		s.ageHistogram.DeleteLabelValues(q)
+		// Re-initialize histograms to ensure all labels are present.
+		s.sizeHistogram.WithLabelValues(q)
+		s.ageHistogram.WithLabelValues(q)
+	}
 
 	now := float64(time.Now().UnixNano()) / 1e9
 	queue := "unknown"
