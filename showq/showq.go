@@ -49,10 +49,9 @@ func (s *Showq) collectTextualShowqFromScanner(file io.Reader) error {
 	// Remove metrics from size and age histograms and re-initialize them. HistogramVec
 	// is intended to capture data streams. Showq however always returns all emails
 	// currently queued, therefore we need to reset the histograms before every collect.
+	s.sizeHistogram.Reset()
+	s.ageHistogram.Reset()
 	for _, q := range []string{"active", "hold", "other"} {
-		// Delete histogram metrics
-		s.sizeHistogram.DeleteLabelValues(q)
-		s.ageHistogram.DeleteLabelValues(q)
 		// Re-initialize histograms to ensure all labels are present.
 		s.sizeHistogram.WithLabelValues(q)
 		s.ageHistogram.WithLabelValues(q)
@@ -148,10 +147,9 @@ func (s *Showq) collectBinaryShowqFromScanner(file io.Reader) error {
 	// Remove metrics from size and age histograms and re-initialize them. HistogramVec
 	// is intended to capture data streams. Showq however always returns all emails
 	// currently queued, therefore we need to reset the histograms before every collect.
+	s.sizeHistogram.Reset()
+	s.ageHistogram.Reset()
 	for _, q := range []string{"active", "deferred", "hold", "incoming", "maildrop"} {
-		// Delete histogram metrics
-		s.sizeHistogram.DeleteLabelValues(q)
-		s.ageHistogram.DeleteLabelValues(q)
 		// Re-initialize histograms to ensure all labels are present.
 		s.sizeHistogram.WithLabelValues(q)
 		s.ageHistogram.WithLabelValues(q)
