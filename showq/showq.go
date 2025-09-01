@@ -109,7 +109,6 @@ func (s *Showq) collectTextualShowqFromScanner(file io.Reader) error {
 	}
 	for q, count := range queueSizes {
 		s.queueMessageGauge.WithLabelValues(q).Set(count)
-		s.knownQueues[q] = struct{}{}
 	}
 	return scanner.Err()
 }
@@ -194,7 +193,6 @@ func (s *Showq) collectBinaryShowqFromScanner(file io.Reader) error {
 
 	for q, count := range queueSizes {
 		s.queueMessageGauge.WithLabelValues(q).Set(count)
-		s.knownQueues[q] = struct{}{}
 	}
 	for q := range s.knownQueues {
 		if _, seen := queueSizes[q]; !seen {
