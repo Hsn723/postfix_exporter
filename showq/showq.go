@@ -51,7 +51,7 @@ func (s *Showq) collectTextualShowqFromScanner(file io.Reader) error {
 	// currently queued, therefore we need to reset the histograms before every collect.
 	s.sizeHistogram.Reset()
 	s.ageHistogram.Reset()
-	for _, q := range []string{"active", "hold", "other"} {
+	for q := range s.knownQueues {
 		// Re-initialize histograms to ensure all labels are present.
 		s.sizeHistogram.WithLabelValues(q)
 		s.ageHistogram.WithLabelValues(q)
@@ -149,7 +149,7 @@ func (s *Showq) collectBinaryShowqFromScanner(file io.Reader) error {
 	// currently queued, therefore we need to reset the histograms before every collect.
 	s.sizeHistogram.Reset()
 	s.ageHistogram.Reset()
-	for _, q := range []string{"active", "deferred", "hold", "incoming", "maildrop"} {
+	for q := range s.knownQueues {
 		// Re-initialize histograms to ensure all labels are present.
 		s.sizeHistogram.WithLabelValues(q)
 		s.ageHistogram.WithLabelValues(q)
@@ -231,8 +231,6 @@ func (s *Showq) init(file io.Reader) {
 			[]string{"queue"},
 		)
 
-		s.knownQueues = make(map[string]struct{})
-
 		reader := bufio.NewReader(file)
 		buf, err := reader.Peek(128)
 		if err != nil && err != io.EOF {
@@ -244,9 +242,13 @@ func (s *Showq) init(file io.Reader) {
 		// are terminated using null bytes. Auto-detect the format by scanning
 		// for null bytes in the first 128 bytes of output.
 		if bytes.IndexByte(buf, 0) >= 0 {
+			// Postfix 3.x
 			s.readerFunc = s.collectBinaryShowqFromReader
+			s.knownQueues = map[string]struct{}{"active": {}, "deferred": {}, "hold": {}, "incoming": {}, "maildrop": {}}
 		} else {
+			// Postfix 2.x
 			s.readerFunc = s.collectTextualShowqFromReader
+			s.knownQueues = map[string]struct{}{"active": {}, "hold": {}, "other": {}}
 		}
 	})
 }
