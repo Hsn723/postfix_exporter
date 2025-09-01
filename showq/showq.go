@@ -46,7 +46,7 @@ func (s *Showq) collectTextualShowqFromScanner(file io.Reader) error {
 	scanner.Split(bufio.ScanLines)
 	queueSizes := make(map[string]float64)
 
-	// Remove metrics from size and age histograms and re-initialize them. HistogramVec
+	// Reset size and age histograms and re-initialize them. HistogramVec
 	// is intended to capture data streams. Showq however always returns all emails
 	// currently queued, therefore we need to reset the histograms before every collect.
 	s.sizeHistogram.Reset()
@@ -143,16 +143,10 @@ func (s *Showq) collectBinaryShowqFromScanner(file io.Reader) error {
 	scanner.Split(ScanNullTerminatedEntries)
 	queueSizes := make(map[string]float64)
 
-	// Remove metrics from size and age histograms and re-initialize them. HistogramVec
-	// is intended to capture data streams. Showq however always returns all emails
+	// HistogramVec is intended to capture data streams. Showq however always returns all emails
 	// currently queued, therefore we need to reset the histograms before every collect.
 	s.sizeHistogram.Reset()
 	s.ageHistogram.Reset()
-	for q := range s.knownQueues {
-		// Re-initialize histograms to ensure all labels are present.
-		s.sizeHistogram.WithLabelValues(q)
-		s.ageHistogram.WithLabelValues(q)
-	}
 
 	now := float64(time.Now().UnixNano()) / 1e9
 	queue := "unknown"
@@ -197,6 +191,8 @@ func (s *Showq) collectBinaryShowqFromScanner(file io.Reader) error {
 	for q := range s.knownQueues {
 		if _, seen := queueSizes[q]; !seen {
 			s.queueMessageGauge.WithLabelValues(q).Set(0)
+			s.sizeHistogram.WithLabelValues(q)
+			s.ageHistogram.WithLabelValues(q)
 		}
 	}
 	return scanner.Err()
