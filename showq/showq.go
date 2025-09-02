@@ -46,6 +46,17 @@ func (s *Showq) collectTextualShowqFromScanner(file io.Reader) error {
 	scanner.Split(bufio.ScanLines)
 	queueSizes := make(map[string]float64)
 
+	// Reset size and age histograms and re-initialize them. HistogramVec
+	// is intended to capture data streams. Showq however always returns all emails
+	// currently queued, therefore we need to reset the histograms before every collect.
+	s.sizeHistogram.Reset()
+	s.ageHistogram.Reset()
+	for q := range s.knownQueues {
+		// Re-initialize histograms to ensure all labels are present.
+		s.sizeHistogram.WithLabelValues(q)
+		s.ageHistogram.WithLabelValues(q)
+	}
+
 	location, err := time.LoadLocation("Local")
 	if err != nil {
 		log.Println(err)
@@ -98,7 +109,6 @@ func (s *Showq) collectTextualShowqFromScanner(file io.Reader) error {
 	}
 	for q, count := range queueSizes {
 		s.queueMessageGauge.WithLabelValues(q).Set(count)
-		s.knownQueues[q] = struct{}{}
 	}
 	return scanner.Err()
 }
@@ -132,6 +142,11 @@ func (s *Showq) collectBinaryShowqFromScanner(file io.Reader) error {
 	scanner := bufio.NewScanner(file)
 	scanner.Split(ScanNullTerminatedEntries)
 	queueSizes := make(map[string]float64)
+
+	// HistogramVec is intended to capture data streams. Showq however always returns all emails
+	// currently queued, therefore we need to reset the histograms before every collect.
+	s.sizeHistogram.Reset()
+	s.ageHistogram.Reset()
 
 	now := float64(time.Now().UnixNano()) / 1e9
 	queue := "unknown"
@@ -172,11 +187,12 @@ func (s *Showq) collectBinaryShowqFromScanner(file io.Reader) error {
 
 	for q, count := range queueSizes {
 		s.queueMessageGauge.WithLabelValues(q).Set(count)
-		s.knownQueues[q] = struct{}{}
 	}
 	for q := range s.knownQueues {
 		if _, seen := queueSizes[q]; !seen {
 			s.queueMessageGauge.WithLabelValues(q).Set(0)
+			s.sizeHistogram.WithLabelValues(q)
+			s.ageHistogram.WithLabelValues(q)
 		}
 	}
 	return scanner.Err()
@@ -209,8 +225,6 @@ func (s *Showq) init(file io.Reader) {
 			[]string{"queue"},
 		)
 
-		s.knownQueues = make(map[string]struct{})
-
 		reader := bufio.NewReader(file)
 		buf, err := reader.Peek(128)
 		if err != nil && err != io.EOF {
@@ -222,9 +236,13 @@ func (s *Showq) init(file io.Reader) {
 		// are terminated using null bytes. Auto-detect the format by scanning
 		// for null bytes in the first 128 bytes of output.
 		if bytes.IndexByte(buf, 0) >= 0 {
+			// Postfix 3.x
 			s.readerFunc = s.collectBinaryShowqFromReader
+			s.knownQueues = map[string]struct{}{"active": {}, "deferred": {}, "hold": {}, "incoming": {}, "maildrop": {}}
 		} else {
+			// Postfix 2.x
 			s.readerFunc = s.collectTextualShowqFromReader
+			s.knownQueues = map[string]struct{}{"active": {}, "hold": {}, "other": {}}
 		}
 	})
 }
