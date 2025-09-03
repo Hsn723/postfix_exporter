@@ -125,7 +125,7 @@ var (
 	smtpdFCrDNSErrorsLine               = regexp.MustCompile(`^warning: hostname \S+ does not resolve to address `)
 	smtpdProcessesSASLLine              = regexp.MustCompile(`: client=.*, sasl_method=(\S+)`)
 	smtpdRejectsLine                    = regexp.MustCompile(`^NOQUEUE: reject: RCPT from \S+: ([0-9]+) `)
-	smtpdLostConnectionLine             = regexp.MustCompile(`^(NOQUEUE: l|l)ost connection after (\w+) from `)
+	smtpdLostConnectionLine             = regexp.MustCompile(`^(?:NOQUEUE: )?lost connection after (\w+) from `)
 	smtpdSASLAuthenticationFailuresLine = regexp.MustCompile(`^warning: \S+: SASL \S+ authentication failed: `)
 	smtpdTLSLine                        = regexp.MustCompile(`^(\S+) TLS connection established from \S+: (\S+) with cipher (\S+) \((\d+)/(\d+) bits\)`)
 	opendkimSignatureAdded              = regexp.MustCompile(`^[\w\d]+: DKIM-Signature field added \(s=(\w+), d=(.*)\)$`)
@@ -249,7 +249,7 @@ func (e *PostfixExporter) collectSMTPdLog(line, remainder, level string) {
 	} else if smtpdFCrDNSErrorsLine.MatchString(remainder) {
 		e.smtpdFCrDNSErrors.Inc()
 	} else if smtpdLostConnectionMatches := smtpdLostConnectionLine.FindStringSubmatch(remainder); smtpdLostConnectionMatches != nil {
-		e.smtpdLostConnections.WithLabelValues(smtpdLostConnectionMatches[2]).Inc()
+		e.smtpdLostConnections.WithLabelValues(smtpdLostConnectionMatches[1]).Inc()
 	} else if smtpdProcessesSASLMatches := smtpdProcessesSASLLine.FindStringSubmatch(remainder); smtpdProcessesSASLMatches != nil {
 		e.smtpdProcesses.WithLabelValues(strings.ReplaceAll(smtpdProcessesSASLMatches[1], ",", "")).Inc()
 	} else if strings.Contains(remainder, ": client=") {
