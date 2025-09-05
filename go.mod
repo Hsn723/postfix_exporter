@@ -9,7 +9,7 @@ require (
 	github.com/coreos/go-systemd/v22 v22.6.0
 	github.com/docker/docker v28.4.0+incompatible
 	github.com/nxadm/tail v1.4.11
-	github.com/prometheus/client_golang v1.23.0
+	github.com/prometheus/client_golang v1.23.1
 	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.66.0
 	github.com/prometheus/exporter-toolkit v0.14.0
