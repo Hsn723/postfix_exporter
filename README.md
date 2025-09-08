@@ -45,8 +45,16 @@ These options can be used when starting the `postfix_exporter`
 | `--systemd.unit`         | Name of the Postfix systemd unit                     | `postfix.service`                 |
 | `--systemd.slice`        | Name of the Postfix systemd slice.                   | `""`                              |
 | `--systemd.journal_path` | Path to the systemd journal                          | `""`                              |
+| `--kubernetes.enable`         | Read from Kubernetes pod logs instead of log    | `false`                           |
+| `--kubernetes.namespace`      | Kubernetes namespace to read logs from          | current namespace (in-cluster) or "default" |
+| `--kubernetes.pod-name`       | Specific pod name to read logs from             | `""`                              |
+| `--kubernetes.service `       | Name of the service selecting the postfix pods  | `""`                              |
+| `--kubernetes.container`      | Container name to read logs from (default: all) | `""`                              |
+| `--kubernetes.kubeconfig`     | Path to kubeconfig file if out of cluster       | `"~/.kube/config"`                |
 
-The `--docker.*` flags are not available for binaries built with the `nodocker` build tag. The `--systemd.*` flags are not available for binaries built with the `nosystemd` build tag.
+- The `--docker.*` flags are not available for binaries built with the `nodocker` build tag
+- The `--systemd.*` flags are not available for binaries built with the `nosystemd` build tag
+- The `--kubernetes.*` flags are not available for binaries built with the `nokubernetes` build tag
 
 ### User-defined service labels
 
@@ -100,6 +108,53 @@ Retrieval from the systemd journal is enabled with the `--systemd.enable` flag.
 This overrides the log file setting.
 It is possible to specify the unit (with `--systemd.unit`) or slice (with `--systemd.slice`).
 Additionally, it is possible to read the journal from a directory with the `--systemd.journal_path` flag.
+
+## Events from kubernetes (experimental)
+
+If postfix_exporter is built with kubernetes support, a postfix_exporter pod can follow logs from one or more postfix pods in a kubernetes environment using the `--kubernetes.enable` flag.
+
+A service name (`--kubernetes.service`) or pod name (`--kubernetes.pod-name`) must be specified to select the pod(s) to track. If more than one container runs in the pod, it is also possible to explicitly specify the container postfix runs in using `--kubernetes.container`.
+
+As pods are remote to the postfix_exporter instance, it is necessary to connect to showq using TCP. To do so, the service name of the kubernetes service selecting postfix pods must be specified via `--kubernetes.service`.
+
+If `--kubernetes.namespace` is not specified, by default the namespace in which postfix_exporter runs is used. If postfix_exporter is running out of cluster (ex: locally), the `"default"` namespace is used and a custom kubeconfig location can be specified via `--kubernetes.kubeconfig`.
+
+For postfix_exporter to be able to follow logs from postfix pods, it must also be given the appropriate RBACs.
+
+For example:
+
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: postfix
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: postfix
+rules:
+- apiGroups: [""]
+  resources: ["pods", "pods/log", "services"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["statefulsets", "replicasets", "daemonsets"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: postfix
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: postfix
+subjects:
+- kind: ServiceAccount
+  name: postfix
+  namespace: postfix
+
+```
 
 ## Build options
 
