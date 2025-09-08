@@ -69,26 +69,33 @@ func main() {
 	}
 	log.Print(versionString)
 
-	logSrc, err := NewLogSourceFromFactories(ctx)
+	logSrcs, err := NewLogSourceFromFactories(ctx)
 	if err != nil {
 		log.Fatalf("Error opening log source: %s", err)
 	}
-	defer logSrc.Close()
-
-	exporter := NewPostfixExporter(
-		*postfixShowqPath,
-		logSrc,
-		*logUnsupportedLines,
-		WithCleanupLabels(*cleanupLabels),
-		WithLmtpLabels(*lmtpLabels),
-		WithPipeLabels(*pipeLabels),
-		WithQmgrLabels(*qmgrLabels),
-		WithSmtpLabels(*smtpLabels),
-		WithSmtpdLabels(*smtpdLabels),
-		WithBounceLabels(*bounceLabels),
-		WithVirtualLabels(*virtualLabels),
-	)
-	prometheus.MustRegister(exporter)
+	defer func() {
+		for _, ls := range logSrcs {
+			ls.Close()
+		}
+	}()
+	exporters := make([]*PostfixExporter, 0, len(logSrcs))
+	for _, logSrc := range logSrcs {
+		exporter := NewPostfixExporter(
+			*postfixShowqPath,
+			logSrc,
+			*logUnsupportedLines,
+			WithCleanupLabels(*cleanupLabels),
+			WithLmtpLabels(*lmtpLabels),
+			WithPipeLabels(*pipeLabels),
+			WithQmgrLabels(*qmgrLabels),
+			WithSmtpLabels(*smtpLabels),
+			WithSmtpdLabels(*smtpdLabels),
+			WithBounceLabels(*bounceLabels),
+			WithVirtualLabels(*virtualLabels),
+		)
+		prometheus.MustRegister(exporter)
+		exporters = append(exporters, exporter)
+	}
 
 	http.Handle(*metricsPath, promhttp.Handler())
 	lc := web.LandingConfig{
@@ -110,7 +117,9 @@ func main() {
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 	defer cancelFunc()
-	go exporter.StartMetricCollection(ctx)
+	for _, exporter := range exporters {
+		go exporter.StartMetricCollection(ctx)
+	}
 
 	server := &http.Server{}
 	logger := promslog.New(&promslog.Config{})

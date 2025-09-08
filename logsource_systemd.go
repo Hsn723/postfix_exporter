@@ -22,6 +22,7 @@ var timeNow = time.Now
 type SystemdLogSource struct {
 	journal SystemdJournal
 	path    string
+	LogSourceDefaults
 }
 
 // A SystemdJournal is the journal interface that sdjournal.Journal
@@ -135,7 +136,7 @@ func (f *systemdLogSourceFactory) Init(app *kingpin.Application) {
 	app.Flag("systemd.journal_path", "Path to the systemd journal").Default("").StringVar(&f.path)
 }
 
-func (f *systemdLogSourceFactory) New(ctx context.Context) (LogSourceCloser, error) {
+func (f *systemdLogSourceFactory) New(ctx context.Context) ([]LogSourceCloser, error) {
 	if !f.enable {
 		return nil, nil
 	}
@@ -145,7 +146,11 @@ func (f *systemdLogSourceFactory) New(ctx context.Context) (LogSourceCloser, err
 	if err != nil {
 		return nil, err
 	}
-	return NewSystemdLogSource(j, path, f.unit, f.slice)
+	source, err := NewSystemdLogSource(j, path, f.unit, f.slice)
+	if err != nil {
+		return nil, err
+	}
+	return []LogSourceCloser{source}, nil
 }
 
 // newSystemdJournal creates a journal handle. It returns the handle

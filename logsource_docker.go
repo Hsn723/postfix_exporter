@@ -21,6 +21,7 @@ type DockerLogSource struct {
 	client      DockerClient
 	reader      *bufio.Reader
 	containerID string
+	LogSourceDefaults
 }
 
 // A DockerClient is the client interface that client.Client
@@ -79,7 +80,7 @@ func (f *dockerLogSourceFactory) Init(app *kingpin.Application) {
 	app.Flag("docker.container.id", "ID/name of the Postfix Docker container.").Default("postfix").StringVar(&f.containerID)
 }
 
-func (f *dockerLogSourceFactory) New(ctx context.Context) (LogSourceCloser, error) {
+func (f *dockerLogSourceFactory) New(ctx context.Context) ([]LogSourceCloser, error) {
 	if !f.enable {
 		return nil, nil
 	}
@@ -89,7 +90,13 @@ func (f *dockerLogSourceFactory) New(ctx context.Context) (LogSourceCloser, erro
 	if err != nil {
 		return nil, err
 	}
-	return NewDockerLogSource(ctx, c, f.containerID)
+
+	logSource, err := NewDockerLogSource(ctx, c, f.containerID)
+	if err != nil {
+		return nil, err
+	}
+
+	return []LogSourceCloser{logSource}, nil
 }
 
 func init() {
