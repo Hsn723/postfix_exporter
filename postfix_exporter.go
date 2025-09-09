@@ -653,7 +653,7 @@ func NewPostfixExporter(showqPath string, logSrc LogSource, logUnsupportedLines 
 		bounceLabels:        defaultBounceLabels,
 		virtualLabels:       defaultVirtualLabels,
 		logUnsupportedLines: logUnsupportedLines,
-		showq:               showq.NewShowq(showqPath, constLabels),
+		showq:               showq.NewShowq(showqPath).WithConstLabels(constLabels),
 		showqPath:           showqPath,
 		logSrc:              logSrc,
 	}

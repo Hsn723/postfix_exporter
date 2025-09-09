@@ -86,7 +86,7 @@ func TestCollectShowqFromReader(t *testing.T) {
 				t.Error(err)
 			}
 			fd := bufio.NewReader(file)
-			s := NewShowq("", prometheus.Labels{})
+			s := NewShowq("")
 			s.init(fd)
 			defer file.Close()
 
@@ -155,7 +155,7 @@ func TestCollectBinaryShowqFromReader(t *testing.T) {
 				b.WriteByte(0) // Null-terminate each entry
 			}
 			reader := bytes.NewReader(b.Bytes())
-			s := NewShowq("", prometheus.Labels{})
+			s := NewShowq("")
 			s.init(reader)
 			_, err := reader.Seek(0, io.SeekStart)
 			assert.NoError(t, err, "Failed to reset reader position")

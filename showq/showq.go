@@ -261,9 +261,13 @@ func (s *Showq) Collect(ch chan<- prometheus.Metric) error {
 	return s.readerFunc(fd, ch)
 }
 
-func NewShowq(path string, constLabels prometheus.Labels) *Showq {
+func (s *Showq) WithConstLabels(labels prometheus.Labels) *Showq {
+	s.constLabels = labels
+	return s
+}
+
+func NewShowq(path string) *Showq {
 	return &Showq{
 		path: path,
-		constLabels: constLabels,
 	}
 }
