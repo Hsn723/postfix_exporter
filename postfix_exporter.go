@@ -28,11 +28,6 @@ import (
 )
 
 var (
-	postfixUpDesc = prometheus.NewDesc(
-		prometheus.BuildFQName("postfix", "", "up"),
-		"Whether scraping Postfix's metrics was successful.",
-		[]string{"path"}, nil)
-
 	SystemdNoMoreEntries = errors.New("No more journal entries")
 )
 
@@ -81,6 +76,8 @@ type PostfixExporter struct {
 	opendkimSignatureAdded *prometheus.CounterVec
 
 	unsupportedLogEntries *prometheus.CounterVec
+
+	postfixUp *prometheus.GaugeVec
 
 	showq     *showq.Showq
 	showqPath string
@@ -627,6 +624,16 @@ func (e *PostfixExporter) init() {
 			Help:        "Total number of mail delivered to a virtual mailbox.",
 			ConstLabels: constLabels,
 		})
+		e.postfixUp = prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace:   "postfix",
+				Subsystem:   "",
+				Name:        "up",
+				Help:        "Whether scraping Postfix's metrics was successful.",
+				ConstLabels: constLabels,
+			},
+			[]string{"path"},
+		)
 	})
 }
 
@@ -662,7 +669,7 @@ func NewPostfixExporter(showqPath string, logSrc LogSource, logUnsupportedLines 
 
 // Describe the Prometheus metrics that are going to be exported.
 func (e *PostfixExporter) Describe(ch chan<- *prometheus.Desc) {
-	ch <- postfixUpDesc
+	e.postfixUp.Describe(ch)
 
 	if e.logSrc == nil {
 		return
@@ -703,16 +710,7 @@ func (e *PostfixExporter) StartMetricCollection(ctx context.Context) {
 		return
 	}
 
-	gaugeVec := prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace:   "postfix",
-			Subsystem:   "",
-			Name:        "up",
-			Help:        "Whether scraping Postfix's metrics was successful.",
-			ConstLabels: e.logSrc.ConstLabels(),
-		},
-		[]string{"path"})
-	gauge := gaugeVec.WithLabelValues(e.logSrc.Path())
+	gauge := e.postfixUp.WithLabelValues(e.logSrc.Path())
 	defer gauge.Set(0)
 
 	for {
@@ -730,25 +728,19 @@ func (e *PostfixExporter) StartMetricCollection(ctx context.Context) {
 
 // Collect metrics from Postfix's showq socket and its log file.
 func (e *PostfixExporter) Collect(ch chan<- prometheus.Metric) {
-	err := e.showq.Collect(ch)
-	if err == nil {
-		ch <- prometheus.MustNewConstMetric(
-			postfixUpDesc,
-			prometheus.GaugeValue,
-			1.0,
-			e.showqPath)
-	} else {
-		log.Printf("Failed to scrape showq socket: %s", err)
-		ch <- prometheus.MustNewConstMetric(
-			postfixUpDesc,
-			prometheus.GaugeValue,
-			0.0,
-			e.showqPath)
-	}
-
 	if e.logSrc == nil {
 		return
 	}
+	err := e.showq.Collect(ch)
+	postfixUpGauge := e.postfixUp.WithLabelValues(e.showqPath)
+	if err == nil {
+		postfixUpGauge.Set(1)
+	} else {
+		log.Printf("Failed to scrape showq socket: %s", err)
+		postfixUpGauge.Set(0)
+	}
+	e.postfixUp.Collect(ch)
+
 	ch <- e.cleanupProcesses
 	ch <- e.cleanupRejects
 	ch <- e.cleanupNotAccepted
