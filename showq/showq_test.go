@@ -1,11 +1,9 @@
 package showq
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"io"
-	"os"
 	"testing"
 	"time"
 
@@ -54,53 +52,6 @@ func getCount(t *testing.T, gauge *prometheus.GaugeVec) map[string]float64 {
 		}
 	}
 	return values
-}
-
-func TestCollectShowqFromReader(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name                string
-		file                string
-		wantErr             bool
-		expectedTotalCount  float64
-		expectedActiveCount float64
-		expectedHoldCount   float64
-		expectedOtherCount  float64
-	}{
-		{
-			name:                "basic test",
-			file:                "../testdata/showq.txt",
-			wantErr:             false,
-			expectedTotalCount:  118702,
-			expectedActiveCount: 16,
-			expectedHoldCount:   0,
-			expectedOtherCount:  8,
-		},
-	}
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			file, err := os.Open(tt.file)
-			if err != nil {
-				t.Error(err)
-			}
-			fd := bufio.NewReader(file)
-			s := NewShowq("")
-			s.init(fd)
-			defer file.Close()
-
-			if err := s.collectTextualShowqFromScanner(fd); (err != nil) != tt.wantErr {
-				t.Errorf("CollectShowqFromReader() error = %v, wantErr %v", err, tt.wantErr)
-			}
-			assert.Equal(t, tt.expectedTotalCount, getSum(t, s.sizeHistogram), "Expected a lot more data.")
-			assert.Less(t, 0.0, getSum(t, s.ageHistogram), "Age not greater than 0")
-			counts := getCount(t, s.queueMessageGauge)
-			assert.Equal(t, tt.expectedActiveCount, counts["active"], "Expected active count to match")
-			assert.Equal(t, tt.expectedHoldCount, counts["hold"], "Expected hold count to match")
-			assert.Equal(t, tt.expectedOtherCount, counts["other"], "Expected other count to match")
-		})
-	}
 }
 
 func TestCollectBinaryShowqFromReader(t *testing.T) {
@@ -156,7 +107,7 @@ func TestCollectBinaryShowqFromReader(t *testing.T) {
 			}
 			reader := bytes.NewReader(b.Bytes())
 			s := NewShowq("")
-			s.init(reader)
+			s.init()
 			_, err := reader.Seek(0, io.SeekStart)
 			assert.NoError(t, err, "Failed to reset reader position")
 

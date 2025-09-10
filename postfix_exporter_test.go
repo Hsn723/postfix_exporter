@@ -40,7 +40,7 @@ type testCase struct {
 
 func testPostfixExporter_CollectFromLogline(t *testing.T, tt testCase) {
 	t.Helper()
-	e := NewPostfixExporter("", nil, true, tt.serviceLabels...)
+	e := NewPostfixExporter(nil, nil, true, tt.serviceLabels...)
 
 	for _, line := range tt.args.line {
 		e.CollectFromLogLine(line)

@@ -6,19 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
-	"regexp"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-)
-
-var (
-	// "A07A81514      5156 Tue Feb 14 13:13:54  MAILER-DAEMON".
-	messageLine = regexp.MustCompile(`^[0-9A-F]+([\*!]?) +(\d+) (\w{3} \w{3} +\d+ +\d+:\d{2}:\d{2}) +`)
 )
 
 type Showq struct {
@@ -27,91 +20,9 @@ type Showq struct {
 	queueMessageGauge *prometheus.GaugeVec
 	knownQueues       map[string]struct{}
 	constLabels       prometheus.Labels
-	readerFunc        func(io.Reader, chan<- prometheus.Metric) error
-	path              string
+	address           string
+	network           string
 	once              sync.Once
-}
-
-// CollectTextualShowqFromReader parses Postfix's textual showq output.
-func (s *Showq) collectTextualShowqFromReader(file io.Reader, ch chan<- prometheus.Metric) error {
-	err := s.collectTextualShowqFromScanner(file)
-
-	s.queueMessageGauge.Collect(ch)
-	s.sizeHistogram.Collect(ch)
-	s.ageHistogram.Collect(ch)
-	return err
-}
-
-func (s *Showq) collectTextualShowqFromScanner(file io.Reader) error {
-	scanner := bufio.NewScanner(file)
-	scanner.Split(bufio.ScanLines)
-	queueSizes := make(map[string]float64)
-
-	// Reset size and age histograms and re-initialize them. HistogramVec
-	// is intended to capture data streams. Showq however always returns all emails
-	// currently queued, therefore we need to reset the histograms before every collect.
-	s.sizeHistogram.Reset()
-	s.ageHistogram.Reset()
-	for q := range s.knownQueues {
-		// Re-initialize histograms to ensure all labels are present.
-		s.sizeHistogram.WithLabelValues(q)
-		s.ageHistogram.WithLabelValues(q)
-	}
-
-	location, err := time.LoadLocation("Local")
-	if err != nil {
-		log.Println(err)
-	}
-
-	for scanner.Scan() {
-		text := scanner.Text()
-		matches := messageLine.FindStringSubmatch(text)
-		if matches == nil {
-			continue
-		}
-		queueMatch := matches[1]
-		sizeMatch := matches[2]
-		dateMatch := matches[3]
-
-		// Derive the name of the message queue.
-		var queue string
-		switch queueMatch {
-		case "*":
-			queue = "active"
-		case "!":
-			queue = "hold"
-		default:
-			queue = "other"
-		}
-
-		// Parse the message size.
-		size, err := strconv.ParseFloat(sizeMatch, 64)
-		if err != nil {
-			return err
-		}
-
-		// Parse the message date. Unfortunately, the
-		// output contains no year number. Assume it
-		// applies to the last year for which the
-		// message date doesn't exceed time.Now().
-		date, err := time.ParseInLocation("Mon Jan 2 15:04:05", dateMatch, location)
-		if err != nil {
-			return err
-		}
-		now := time.Now()
-		date = date.AddDate(now.Year(), 0, 0)
-		if date.After(now) {
-			date = date.AddDate(-1, 0, 0)
-		}
-
-		queueSizes[queue]++
-		s.sizeHistogram.WithLabelValues(queue).Observe(size)
-		s.ageHistogram.WithLabelValues(queue).Observe(now.Sub(date).Seconds())
-	}
-	for q, count := range queueSizes {
-		s.queueMessageGauge.WithLabelValues(q).Set(count)
-	}
-	return scanner.Err()
 }
 
 // ScanNullTerminatedEntries is a splitting function for bufio.Scanner
@@ -199,7 +110,7 @@ func (s *Showq) collectBinaryShowqFromScanner(file io.Reader) error {
 	return scanner.Err()
 }
 
-func (s *Showq) init(file io.Reader) {
+func (s *Showq) init() {
 	s.once.Do(func() {
 		s.ageHistogram = prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
@@ -228,37 +139,22 @@ func (s *Showq) init(file io.Reader) {
 			},
 			[]string{"queue"},
 		)
-
-		reader := bufio.NewReader(file)
-		buf, err := reader.Peek(128)
-		if err != nil && err != io.EOF {
-			log.Printf("Could not read postfix output, %v", err)
-		}
-		// The output format of Postfix's 'showq' command depends on the version
-		// used. Postfix 2.x uses a textual format, identical to the output of
-		// the 'mailq' command. Postfix 3.x uses a binary format, where entries
-		// are terminated using null bytes. Auto-detect the format by scanning
-		// for null bytes in the first 128 bytes of output.
-		if bytes.IndexByte(buf, 0) >= 0 {
-			// Postfix 3.x
-			s.readerFunc = s.collectBinaryShowqFromReader
-			s.knownQueues = map[string]struct{}{"active": {}, "deferred": {}, "hold": {}, "incoming": {}, "maildrop": {}}
-		} else {
-			// Postfix 2.x
-			s.readerFunc = s.collectTextualShowqFromReader
-			s.knownQueues = map[string]struct{}{"active": {}, "hold": {}, "other": {}}
-		}
+		s.knownQueues = map[string]struct{}{"active": {}, "deferred": {}, "hold": {}, "incoming": {}, "maildrop": {}}
 	})
 }
 
 func (s *Showq) Collect(ch chan<- prometheus.Metric) error {
-	fd, err := net.Dial("unix", s.path)
+	fd, err := net.Dial(s.network, s.address)
 	if err != nil {
 		return err
 	}
 	defer fd.Close()
-	s.init(fd)
-	return s.readerFunc(fd, ch)
+	s.init()
+	return s.collectBinaryShowqFromReader(fd, ch)
+}
+
+func (s *Showq) Path() string {
+	return fmt.Sprintf("%s://%s", s.network, s.address)
 }
 
 func (s *Showq) WithConstLabels(labels prometheus.Labels) *Showq {
@@ -266,8 +162,14 @@ func (s *Showq) WithConstLabels(labels prometheus.Labels) *Showq {
 	return s
 }
 
-func NewShowq(path string) *Showq {
+func (s *Showq) WithNetwork(network string) *Showq {
+	s.network = network
+	return s
+}
+
+func NewShowq(addr string) *Showq {
 	return &Showq{
-		path: path,
+		address: addr,
+		network: "unix",
 	}
 }
