@@ -13,6 +13,8 @@ a UNIX socket under `/var/spool`. It also counts events by parsing Postfix's
 log entries, using regular expression matching. The log entries are retrieved from
 the systemd journal, the Docker logs, or from a log file.
 
+The last version of this exporter that supports the EOL Postfix 2.x is 0.14.0.
+
 ## Options
 
 These options can be used when starting the `postfix_exporter`
