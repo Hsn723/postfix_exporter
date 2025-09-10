@@ -20,6 +20,7 @@ var defaultConfig = tail.Config{
 // A FileLogSource can read lines from a file.
 type FileLogSource struct {
 	tailer *tail.Tail
+	LogSourceDefaults
 }
 
 // NewFileLogSource creates a new log source, tailing the given file.
@@ -28,7 +29,7 @@ func NewFileLogSource(path string, config tail.Config) (*FileLogSource, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &FileLogSource{tailer}, nil
+	return &FileLogSource{tailer: tailer}, nil
 }
 
 func (s *FileLogSource) Close() error {
@@ -85,10 +86,14 @@ func (f fileLogSourceFactory) config() tail.Config {
 	return conf
 }
 
-func (f *fileLogSourceFactory) New(ctx context.Context) (LogSourceCloser, error) {
+func (f *fileLogSourceFactory) New(ctx context.Context) ([]LogSourceCloser, error) {
 	if f.path == "" {
 		return nil, nil
 	}
 	log.Printf("Reading log events from %s", f.path)
-	return NewFileLogSource(f.path, f.config())
+	logSource, err := NewFileLogSource(f.path, f.config())
+	if err != nil {
+		return nil, err
+	}
+	return []LogSourceCloser{logSource}, nil
 }

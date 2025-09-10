@@ -26,6 +26,7 @@ type Showq struct {
 	sizeHistogram     *prometheus.HistogramVec
 	queueMessageGauge *prometheus.GaugeVec
 	knownQueues       map[string]struct{}
+	constLabels       prometheus.Labels
 	readerFunc        func(io.Reader, chan<- prometheus.Metric) error
 	path              string
 	once              sync.Once
@@ -202,25 +203,28 @@ func (s *Showq) init(file io.Reader) {
 	s.once.Do(func() {
 		s.ageHistogram = prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
-				Namespace: "postfix",
-				Name:      "showq_message_age_seconds",
-				Help:      "Age of messages in Postfix's message queue, in seconds",
-				Buckets:   []float64{1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8},
+				Namespace:   "postfix",
+				Name:        "showq_message_age_seconds",
+				Help:        "Age of messages in Postfix's message queue, in seconds",
+				Buckets:     []float64{1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8},
+				ConstLabels: s.constLabels,
 			},
 			[]string{"queue"})
 		s.sizeHistogram = prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
-				Namespace: "postfix",
-				Name:      "showq_message_size_bytes",
-				Help:      "Size of messages in Postfix's message queue, in bytes",
-				Buckets:   []float64{1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9},
+				Namespace:   "postfix",
+				Name:        "showq_message_size_bytes",
+				Help:        "Size of messages in Postfix's message queue, in bytes",
+				Buckets:     []float64{1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9},
+				ConstLabels: s.constLabels,
 			},
 			[]string{"queue"})
 		s.queueMessageGauge = prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
-				Namespace: "postfix",
-				Name:      "showq_queue_depth",
-				Help:      "Number of messages in Postfix's message queue",
+				Namespace:   "postfix",
+				Name:        "showq_queue_depth",
+				Help:        "Number of messages in Postfix's message queue",
+				ConstLabels: s.constLabels,
 			},
 			[]string{"queue"},
 		)
@@ -255,6 +259,11 @@ func (s *Showq) Collect(ch chan<- prometheus.Metric) error {
 	defer fd.Close()
 	s.init(fd)
 	return s.readerFunc(fd, ch)
+}
+
+func (s *Showq) WithConstLabels(labels prometheus.Labels) *Showq {
+	s.constLabels = labels
+	return s
 }
 
 func NewShowq(path string) *Showq {

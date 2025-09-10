@@ -28,11 +28,6 @@ import (
 )
 
 var (
-	postfixUpDesc = prometheus.NewDesc(
-		prometheus.BuildFQName("postfix", "", "up"),
-		"Whether scraping Postfix's metrics was successful.",
-		[]string{"path"}, nil)
-
 	SystemdNoMoreEntries = errors.New("No more journal entries")
 )
 
@@ -82,6 +77,8 @@ type PostfixExporter struct {
 
 	unsupportedLogEntries *prometheus.CounterVec
 
+	postfixUp *prometheus.GaugeVec
+
 	showq     *showq.Showq
 	showqPath string
 
@@ -110,7 +107,17 @@ type LogSource interface {
 	// Read returns the next log line. Returns `io.EOF` at the end of
 	// the log.
 	Read(context.Context) (string, error)
+
+	ConstLabels() prometheus.Labels
+	requireEmbed()
 }
+
+type LogSourceDefaults struct{}
+
+func (LogSourceDefaults) ConstLabels() prometheus.Labels {
+	return prometheus.Labels{}
+}
+func (LogSourceDefaults) requireEmbed() {}
 
 // Patterns for parsing log messages.
 var (
@@ -407,188 +414,235 @@ func (e *PostfixExporter) init() {
 	timeBuckets := []float64{1e-3, 1e-2, 1e-1, 1.0, 10, 1 * 60, 1 * 60 * 60, 24 * 60 * 60, 2 * 24 * 60 * 60}
 
 	e.once.Do(func() {
+		constLabels := LogSourceDefaults{}.ConstLabels()
+		if e.logSrc != nil {
+			constLabels = e.logSrc.ConstLabels()
+		}
 		e.cleanupProcesses = prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "postfix",
-			Name:      "cleanup_messages_processed_total",
-			Help:      "Total number of messages processed by cleanup.",
+			Namespace:   "postfix",
+			Name:        "cleanup_messages_processed_total",
+			Help:        "Total number of messages processed by cleanup.",
+			ConstLabels: constLabels,
 		})
 		e.cleanupRejects = prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "postfix",
-			Name:      "cleanup_messages_rejected_total",
-			Help:      "Total number of messages rejected by cleanup.",
+			Namespace:   "postfix",
+			Name:        "cleanup_messages_rejected_total",
+			Help:        "Total number of messages rejected by cleanup.",
+			ConstLabels: constLabels,
 		})
 		e.cleanupNotAccepted = prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "postfix",
-			Name:      "cleanup_messages_not_accepted_total",
-			Help:      "Total number of messages not accepted by cleanup.",
+			Namespace:   "postfix",
+			Name:        "cleanup_messages_not_accepted_total",
+			Help:        "Total number of messages not accepted by cleanup.",
+			ConstLabels: constLabels,
 		})
 		e.lmtpDelays = prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
-				Namespace: "postfix",
-				Name:      "lmtp_delivery_delay_seconds",
-				Help:      "LMTP message processing time in seconds.",
-				Buckets:   timeBuckets,
+				Namespace:   "postfix",
+				Name:        "lmtp_delivery_delay_seconds",
+				Help:        "LMTP message processing time in seconds.",
+				Buckets:     timeBuckets,
+				ConstLabels: constLabels,
 			},
 			[]string{"stage"})
 		e.pipeDelays = prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
-				Namespace: "postfix",
-				Name:      "pipe_delivery_delay_seconds",
-				Help:      "Pipe message processing time in seconds.",
-				Buckets:   timeBuckets,
+				Namespace:   "postfix",
+				Name:        "pipe_delivery_delay_seconds",
+				Help:        "Pipe message processing time in seconds.",
+				Buckets:     timeBuckets,
+				ConstLabels: constLabels,
 			},
 			[]string{"relay", "stage"})
 		e.qmgrInsertsNrcpt = prometheus.NewHistogram(prometheus.HistogramOpts{
-			Namespace: "postfix",
-			Name:      "qmgr_messages_inserted_receipients",
-			Help:      "Number of receipients per message inserted into the mail queues.",
-			Buckets:   []float64{1, 2, 4, 8, 16, 32, 64, 128},
+			Namespace:   "postfix",
+			Name:        "qmgr_messages_inserted_receipients",
+			Help:        "Number of receipients per message inserted into the mail queues.",
+			Buckets:     []float64{1, 2, 4, 8, 16, 32, 64, 128},
+			ConstLabels: constLabels,
 		})
 		e.qmgrInsertsSize = prometheus.NewHistogram(prometheus.HistogramOpts{
-			Namespace: "postfix",
-			Name:      "qmgr_messages_inserted_size_bytes",
-			Help:      "Size of messages inserted into the mail queues in bytes.",
-			Buckets:   []float64{1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9},
+			Namespace:   "postfix",
+			Name:        "qmgr_messages_inserted_size_bytes",
+			Help:        "Size of messages inserted into the mail queues in bytes.",
+			Buckets:     []float64{1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9},
+			ConstLabels: constLabels,
 		})
 		e.qmgrRemoves = prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "postfix",
-			Name:      "qmgr_messages_removed_total",
-			Help:      "Total number of messages removed from mail queues.",
+			Namespace:   "postfix",
+			Name:        "qmgr_messages_removed_total",
+			Help:        "Total number of messages removed from mail queues.",
+			ConstLabels: constLabels,
 		})
 		e.qmgrExpires = prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "postfix",
-			Name:      "qmgr_messages_expired_total",
-			Help:      "Total number of messages expired from mail queues.",
+			Namespace:   "postfix",
+			Name:        "qmgr_messages_expired_total",
+			Help:        "Total number of messages expired from mail queues.",
+			ConstLabels: constLabels,
 		})
 		e.smtpDelays = prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
-				Namespace: "postfix",
-				Name:      "smtp_delivery_delay_seconds",
-				Help:      "SMTP message processing time in seconds.",
-				Buckets:   timeBuckets,
+				Namespace:   "postfix",
+				Name:        "smtp_delivery_delay_seconds",
+				Help:        "SMTP message processing time in seconds.",
+				Buckets:     timeBuckets,
+				ConstLabels: constLabels,
 			},
 			[]string{"stage"})
 		e.smtpTLSConnects = prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Namespace: "postfix",
-				Name:      "smtp_tls_connections_total",
-				Help:      "Total number of outgoing TLS connections.",
+				Namespace:   "postfix",
+				Name:        "smtp_tls_connections_total",
+				Help:        "Total number of outgoing TLS connections.",
+				ConstLabels: constLabels,
 			},
 			[]string{"trust", "protocol", "cipher", "secret_bits", "algorithm_bits"})
 		e.smtpDeferreds = prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "postfix",
-			Name:      "smtp_deferred_messages_total",
-			Help:      "Total number of messages that have been deferred on SMTP.",
+			Namespace:   "postfix",
+			Name:        "smtp_deferred_messages_total",
+			Help:        "Total number of messages that have been deferred on SMTP.",
+			ConstLabels: constLabels,
 		})
 		e.smtpProcesses = prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Namespace: "postfix",
-				Name:      "smtp_messages_processed_total",
-				Help:      "Total number of messages that have been processed by the smtp process.",
+				Namespace:   "postfix",
+				Name:        "smtp_messages_processed_total",
+				Help:        "Total number of messages that have been processed by the smtp process.",
+				ConstLabels: constLabels,
 			},
 			[]string{"status"})
 		e.smtpDeferredDSN = prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Namespace: "postfix",
-				Name:      "smtp_deferred_messages_by_dsn_total",
-				Help:      "Total number of messages that have been deferred on SMTP by DSN.",
+				Namespace:   "postfix",
+				Name:        "smtp_deferred_messages_by_dsn_total",
+				Help:        "Total number of messages that have been deferred on SMTP by DSN.",
+				ConstLabels: constLabels,
 			},
 			[]string{"dsn"})
 		e.smtpBouncedDSN = prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Namespace: "postfix",
-				Name:      "smtp_bounced_messages_by_dsn_total",
-				Help:      "Total number of messages that have been bounced on SMTP by DSN.",
+				Namespace:   "postfix",
+				Name:        "smtp_bounced_messages_by_dsn_total",
+				Help:        "Total number of messages that have been bounced on SMTP by DSN.",
+				ConstLabels: constLabels,
 			},
 			[]string{"dsn"})
 		e.smtpConnectionTimedOut = prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "postfix",
-			Name:      "smtp_connection_timed_out_total",
-			Help:      "Total number of messages that have been deferred on SMTP.",
+			Namespace:   "postfix",
+			Name:        "smtp_connection_timed_out_total",
+			Help:        "Total number of messages that have been deferred on SMTP.",
+			ConstLabels: constLabels,
 		})
 		e.smtpdConnects = prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "postfix",
-			Name:      "smtpd_connects_total",
-			Help:      "Total number of incoming connections.",
+			Namespace:   "postfix",
+			Name:        "smtpd_connects_total",
+			Help:        "Total number of incoming connections.",
+			ConstLabels: constLabels,
 		})
 		e.smtpdDisconnects = prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "postfix",
-			Name:      "smtpd_disconnects_total",
-			Help:      "Total number of incoming disconnections.",
+			Namespace:   "postfix",
+			Name:        "smtpd_disconnects_total",
+			Help:        "Total number of incoming disconnections.",
+			ConstLabels: constLabels,
 		})
 		e.smtpdFCrDNSErrors = prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "postfix",
-			Name:      "smtpd_forward_confirmed_reverse_dns_errors_total",
-			Help:      "Total number of connections for which forward-confirmed DNS cannot be resolved.",
+			Namespace:   "postfix",
+			Name:        "smtpd_forward_confirmed_reverse_dns_errors_total",
+			Help:        "Total number of connections for which forward-confirmed DNS cannot be resolved.",
+			ConstLabels: constLabels,
 		})
 		e.smtpdLostConnections = prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Namespace: "postfix",
-				Name:      "smtpd_connections_lost_total",
-				Help:      "Total number of connections lost.",
+				Namespace:   "postfix",
+				Name:        "smtpd_connections_lost_total",
+				Help:        "Total number of connections lost.",
+				ConstLabels: constLabels,
 			},
 			[]string{"after_stage"})
 		e.smtpdProcesses = prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Namespace: "postfix",
-				Name:      "smtpd_messages_processed_total",
-				Help:      "Total number of messages processed.",
+				Namespace:   "postfix",
+				Name:        "smtpd_messages_processed_total",
+				Help:        "Total number of messages processed.",
+				ConstLabels: constLabels,
 			},
 			[]string{"sasl_method"})
 		e.smtpdRejects = prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Namespace: "postfix",
-				Name:      "smtpd_messages_rejected_total",
-				Help:      "Total number of NOQUEUE rejects.",
+				Namespace:   "postfix",
+				Name:        "smtpd_messages_rejected_total",
+				Help:        "Total number of NOQUEUE rejects.",
+				ConstLabels: constLabels,
 			},
 			[]string{"code"})
 		e.smtpdSASLAuthenticationFailures = prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "postfix",
-			Name:      "smtpd_sasl_authentication_failures_total",
-			Help:      "Total number of SASL authentication failures.",
+			Namespace:   "postfix",
+			Name:        "smtpd_sasl_authentication_failures_total",
+			Help:        "Total number of SASL authentication failures.",
+			ConstLabels: constLabels,
 		})
 		e.smtpdTLSConnects = prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Namespace: "postfix",
-				Name:      "smtpd_tls_connections_total",
-				Help:      "Total number of incoming TLS connections.",
+				Namespace:   "postfix",
+				Name:        "smtpd_tls_connections_total",
+				Help:        "Total number of incoming TLS connections.",
+				ConstLabels: constLabels,
 			},
 			[]string{"trust", "protocol", "cipher", "secret_bits", "algorithm_bits"})
 		e.unsupportedLogEntries = prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Namespace: "postfix",
-				Name:      "unsupported_log_entries_total",
-				Help:      "Log entries that could not be processed.",
+				Namespace:   "postfix",
+				Name:        "unsupported_log_entries_total",
+				Help:        "Log entries that could not be processed.",
+				ConstLabels: constLabels,
 			},
 			[]string{"service", "level"})
 		e.smtpStatusDeferred = prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "postfix",
-			Name:      "smtp_status_deferred",
-			Help:      "Total number of messages deferred.",
+			Namespace:   "postfix",
+			Name:        "smtp_status_deferred",
+			Help:        "Total number of messages deferred.",
+			ConstLabels: constLabels,
 		})
-		e.opendkimSignatureAdded = prometheus.NewCounterVec(
+		e.opendkimSignatureAdded = prometheus.NewCounterVec( // deprecated in a future release.
 			prometheus.CounterOpts{
-				Namespace: "opendkim",
-				Name:      "signatures_added_total",
-				Help:      "Total number of messages signed.",
+				Namespace:   "opendkim",
+				Name:        "signatures_added_total",
+				Help:        "Total number of messages signed.",
+				ConstLabels: constLabels,
 			},
 			[]string{"subject", "domain"},
 		)
 		e.bounceNonDelivery = prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "postfix",
-			Name:      "bounce_non_delivery_notification_total",
-			Help:      "Total number of non delivery notification sent by bounce.",
+			Namespace:   "postfix",
+			Name:        "bounce_non_delivery_notification_total",
+			Help:        "Total number of non delivery notification sent by bounce.",
+			ConstLabels: constLabels,
 		})
 		e.virtualDelivered = prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "postfix",
-			Name:      "virtual_delivered_total",
-			Help:      "Total number of mail delivered to a virtual mailbox.",
+			Namespace:   "postfix",
+			Name:        "virtual_delivered_total",
+			Help:        "Total number of mail delivered to a virtual mailbox.",
+			ConstLabels: constLabels,
 		})
+		e.postfixUp = prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace:   "postfix",
+				Subsystem:   "",
+				Name:        "up",
+				Help:        "Whether scraping Postfix's metrics was successful.",
+				ConstLabels: constLabels,
+			},
+			[]string{"path"},
+		)
 	})
 }
 
 // NewPostfixExporter creates a new Postfix exporter instance.
 func NewPostfixExporter(showqPath string, logSrc LogSource, logUnsupportedLines bool, serviceLabels ...ServiceLabel) *PostfixExporter {
+	constLabels := LogSourceDefaults{}.ConstLabels()
+	if logSrc != nil {
+		constLabels = logSrc.ConstLabels()
+	}
 	postfixExporter := &PostfixExporter{
 		cleanupLabels:       defaultCleanupLabels,
 		lmtpLabels:          defaultLmtpLabels,
@@ -599,7 +653,7 @@ func NewPostfixExporter(showqPath string, logSrc LogSource, logUnsupportedLines 
 		bounceLabels:        defaultBounceLabels,
 		virtualLabels:       defaultVirtualLabels,
 		logUnsupportedLines: logUnsupportedLines,
-		showq:               showq.NewShowq(showqPath),
+		showq:               showq.NewShowq(showqPath).WithConstLabels(constLabels),
 		showqPath:           showqPath,
 		logSrc:              logSrc,
 	}
@@ -615,7 +669,7 @@ func NewPostfixExporter(showqPath string, logSrc LogSource, logUnsupportedLines 
 
 // Describe the Prometheus metrics that are going to be exported.
 func (e *PostfixExporter) Describe(ch chan<- *prometheus.Desc) {
-	ch <- postfixUpDesc
+	e.postfixUp.Describe(ch)
 
 	if e.logSrc == nil {
 		return
@@ -656,15 +710,7 @@ func (e *PostfixExporter) StartMetricCollection(ctx context.Context) {
 		return
 	}
 
-	gaugeVec := prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: "postfix",
-			Subsystem: "",
-			Name:      "up",
-			Help:      "Whether scraping Postfix's metrics was successful.",
-		},
-		[]string{"path"})
-	gauge := gaugeVec.WithLabelValues(e.logSrc.Path())
+	gauge := e.postfixUp.WithLabelValues(e.logSrc.Path())
 	defer gauge.Set(0)
 
 	for {
@@ -682,25 +728,19 @@ func (e *PostfixExporter) StartMetricCollection(ctx context.Context) {
 
 // Collect metrics from Postfix's showq socket and its log file.
 func (e *PostfixExporter) Collect(ch chan<- prometheus.Metric) {
-	err := e.showq.Collect(ch)
-	if err == nil {
-		ch <- prometheus.MustNewConstMetric(
-			postfixUpDesc,
-			prometheus.GaugeValue,
-			1.0,
-			e.showqPath)
-	} else {
-		log.Printf("Failed to scrape showq socket: %s", err)
-		ch <- prometheus.MustNewConstMetric(
-			postfixUpDesc,
-			prometheus.GaugeValue,
-			0.0,
-			e.showqPath)
-	}
-
 	if e.logSrc == nil {
 		return
 	}
+	err := e.showq.Collect(ch)
+	postfixUpGauge := e.postfixUp.WithLabelValues(e.showqPath)
+	if err == nil {
+		postfixUpGauge.Set(1)
+	} else {
+		log.Printf("Failed to scrape showq socket: %s", err)
+		postfixUpGauge.Set(0)
+	}
+	e.postfixUp.Collect(ch)
+
 	ch <- e.cleanupProcesses
 	ch <- e.cleanupRejects
 	ch <- e.cleanupNotAccepted
