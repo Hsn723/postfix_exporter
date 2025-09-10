@@ -22,7 +22,9 @@ These options can be used when starting the `postfix_exporter`
 | `--web.listen-address`   | Address to listen on for web interface and telemetry | `9154`                            |
 | `--web.config.file   `   | Path to configuration file that can enable TLS or authentication [(ref)](https://github.com/prometheus/exporter-toolkit/blob/master/docs/web-configuration.md). | `""`                            |
 | `--web.telemetry-path`   | Path under which to expose metrics                   | `/metrics`                        |
-| `--postfix.showq_path`   | Path at which Postfix places its showq socket        | `/var/spool/postfix/public/showq` |
+| `--postfix.showq_path`    | Path at which Postfix places its showq socket       | `/var/spool/postfix/public/showq` |
+| `--postfix.showq_port`    | TCP port at which showq is listening                | `10025`                           |
+| `--postfix.showq_network` | Network protocol to use to connect to showq         | `"unix"`                          |
 | `--postfix.logfile_path` | Path where Postfix writes log entries                | `/var/log/mail.log`               |
 | `--postfix.logfile_must_exist` | Fail if the log file doesn't exist.            | `true`                            |
 | `--postfix.logfile_debug` | Enable debug logging for the log file.              | `false`                           |
@@ -67,6 +69,10 @@ For instance, for the above `master.cf` example postfix_exporter should be calle
                    --postfix.smtp_service_label relay/smtp \
                    --postfix.smtp_service_label encrypt
 ```
+
+## (experimental) Connecting to remote showq instances
+
+Instead of connecting to a local socket to extract metrics from a local showq instance, postfix_exporter can connect to a remote showq instance via TCP. Exposing a TCP port for the showq service can be dangerous and extreme caution must be taken to avoid unintentional/unauthorized access to showq, as this will expose sensitive information.
 
 ## Events from Docker
 

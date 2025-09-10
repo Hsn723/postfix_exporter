@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -9,6 +10,7 @@ import (
 	_ "embed"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/hsn723/postfix_exporter/showq"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/promslog"
@@ -26,6 +28,18 @@ var (
 	fallbackVersion string
 )
 
+func getShowqAddress(path, remoteAddr, network string, port int) string {
+	switch network {
+	case "unix":
+		return path
+	case "tcp", "tcp4", "tcp6":
+		return fmt.Sprintf("%s:%d", remoteAddr, port)
+	default:
+		log.Fatalf("Unsupported network type: %s", network)
+		return ""
+	}
+}
+
 func main() {
 	var (
 		ctx                 = context.Background()
@@ -34,6 +48,8 @@ func main() {
 		toolkitFlags        = kingpinflag.AddFlags(app, ":9154")
 		metricsPath         = app.Flag("web.telemetry-path", "Path under which to expose metrics.").Default("/metrics").String()
 		postfixShowqPath    = app.Flag("postfix.showq_path", "Path at which Postfix places its showq socket.").Default("/var/spool/postfix/public/showq").String()
+		postfixShowqPort    = app.Flag("postfix.showq_port", "TCP port at which Postfix's showq service is listening.").Default("10025").Int()
+		postfixShowqNetwork = app.Flag("postfix.showq_network", "Network type for Postfix's showq service").Default("unix").String()
 		logUnsupportedLines = app.Flag("log.unsupported", "Log all unsupported lines.").Bool()
 
 		cleanupLabels = app.Flag("postfix.cleanup_service_label", "User-defined service labels for the cleanup service.").Default("cleanup").Strings()
@@ -80,8 +96,10 @@ func main() {
 	}()
 	exporters := make([]*PostfixExporter, 0, len(logSrcs))
 	for _, logSrc := range logSrcs {
+		showqAddr := getShowqAddress(*postfixShowqPath, logSrc.Path(), *postfixShowqNetwork, *postfixShowqPort)
+		s := showq.NewShowq(showqAddr).WithNetwork(*postfixShowqNetwork).WithConstLabels(logSrc.ConstLabels())
 		exporter := NewPostfixExporter(
-			*postfixShowqPath,
+			s,
 			logSrc,
 			*logUnsupportedLines,
 			WithCleanupLabels(*cleanupLabels),

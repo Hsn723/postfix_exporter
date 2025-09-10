@@ -28,7 +28,8 @@ type Showq struct {
 	knownQueues       map[string]struct{}
 	constLabels       prometheus.Labels
 	readerFunc        func(io.Reader, chan<- prometheus.Metric) error
-	path              string
+	address           string
+	network           string
 	once              sync.Once
 }
 
@@ -252,7 +253,7 @@ func (s *Showq) init(file io.Reader) {
 }
 
 func (s *Showq) Collect(ch chan<- prometheus.Metric) error {
-	fd, err := net.Dial("unix", s.path)
+	fd, err := net.Dial(s.network, s.address)
 	if err != nil {
 		return err
 	}
@@ -261,13 +262,23 @@ func (s *Showq) Collect(ch chan<- prometheus.Metric) error {
 	return s.readerFunc(fd, ch)
 }
 
+func (s *Showq) Path() string {
+	return fmt.Sprintf("%s://%s", s.network, s.address)
+}
+
 func (s *Showq) WithConstLabels(labels prometheus.Labels) *Showq {
 	s.constLabels = labels
 	return s
 }
 
-func NewShowq(path string) *Showq {
+func (s *Showq) WithNetwork(network string) *Showq {
+	s.network = network
+	return s
+}
+
+func NewShowq(addr string) *Showq {
 	return &Showq{
-		path: path,
+		address: addr,
+		network: "unix",
 	}
 }

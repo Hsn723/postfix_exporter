@@ -80,7 +80,6 @@ type PostfixExporter struct {
 	postfixUp *prometheus.GaugeVec
 
 	showq     *showq.Showq
-	showqPath string
 
 	bounceLabels  []string
 	cleanupLabels []string
@@ -109,6 +108,7 @@ type LogSource interface {
 	Read(context.Context) (string, error)
 
 	ConstLabels() prometheus.Labels
+	RemoteAddr() string
 	requireEmbed()
 }
 
@@ -116,6 +116,9 @@ type LogSourceDefaults struct{}
 
 func (LogSourceDefaults) ConstLabels() prometheus.Labels {
 	return prometheus.Labels{}
+}
+func (LogSourceDefaults) RemoteAddr() string {
+	return "localhost"
 }
 func (LogSourceDefaults) requireEmbed() {}
 
@@ -638,11 +641,7 @@ func (e *PostfixExporter) init() {
 }
 
 // NewPostfixExporter creates a new Postfix exporter instance.
-func NewPostfixExporter(showqPath string, logSrc LogSource, logUnsupportedLines bool, serviceLabels ...ServiceLabel) *PostfixExporter {
-	constLabels := LogSourceDefaults{}.ConstLabels()
-	if logSrc != nil {
-		constLabels = logSrc.ConstLabels()
-	}
+func NewPostfixExporter(s *showq.Showq, logSrc LogSource, logUnsupportedLines bool, serviceLabels ...ServiceLabel) *PostfixExporter {
 	postfixExporter := &PostfixExporter{
 		cleanupLabels:       defaultCleanupLabels,
 		lmtpLabels:          defaultLmtpLabels,
@@ -653,8 +652,7 @@ func NewPostfixExporter(showqPath string, logSrc LogSource, logUnsupportedLines 
 		bounceLabels:        defaultBounceLabels,
 		virtualLabels:       defaultVirtualLabels,
 		logUnsupportedLines: logUnsupportedLines,
-		showq:               showq.NewShowq(showqPath).WithConstLabels(constLabels),
-		showqPath:           showqPath,
+		showq:               s,
 		logSrc:              logSrc,
 	}
 
@@ -726,20 +724,22 @@ func (e *PostfixExporter) StartMetricCollection(ctx context.Context) {
 	}
 }
 
-// Collect metrics from Postfix's showq socket and its log file.
+// Collect metrics from Postfix's showq and its log file.
 func (e *PostfixExporter) Collect(ch chan<- prometheus.Metric) {
 	if e.logSrc == nil {
 		return
 	}
-	err := e.showq.Collect(ch)
-	postfixUpGauge := e.postfixUp.WithLabelValues(e.showqPath)
-	if err == nil {
-		postfixUpGauge.Set(1)
-	} else {
-		log.Printf("Failed to scrape showq socket: %s", err)
-		postfixUpGauge.Set(0)
+	if e.showq != nil {
+		err := e.showq.Collect(ch)
+		postfixUpGauge := e.postfixUp.WithLabelValues(e.showq.Path())
+		if err == nil {
+			postfixUpGauge.Set(1)
+		} else {
+			log.Printf("Failed to scrape showq: %s", err)
+			postfixUpGauge.Set(0)
+		}
+		e.postfixUp.Collect(ch)
 	}
-	e.postfixUp.Collect(ch)
 
 	ch <- e.cleanupProcesses
 	ch <- e.cleanupRejects
