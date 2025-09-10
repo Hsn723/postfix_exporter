@@ -15,7 +15,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"log"
 	"regexp"
 	"slices"
@@ -23,12 +22,9 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/hsn723/postfix_exporter/logsource"
 	"github.com/hsn723/postfix_exporter/showq"
 	"github.com/prometheus/client_golang/prometheus"
-)
-
-var (
-	SystemdNoMoreEntries = errors.New("No more journal entries")
 )
 
 // PostfixExporter holds the state that should be preserved by the
@@ -57,7 +53,7 @@ type PostfixExporter struct {
 	qmgrRemoves      prometheus.Counter
 	qmgrInsertsNrcpt prometheus.Histogram
 
-	logSrc LogSource
+	logSrc logsource.LogSource
 
 	smtpdLostConnections *prometheus.CounterVec
 	smtpDeferredDSN      *prometheus.CounterVec
@@ -79,7 +75,7 @@ type PostfixExporter struct {
 
 	postfixUp *prometheus.GaugeVec
 
-	showq     *showq.Showq
+	showq *showq.Showq
 
 	bounceLabels  []string
 	cleanupLabels []string
@@ -97,30 +93,6 @@ type PostfixExporter struct {
 
 // ServiceLabel is a function to apply user-defined service labels to PostfixExporter.
 type ServiceLabel func(*PostfixExporter)
-
-// A LogSource is an interface to read log lines.
-type LogSource interface {
-	// Path returns a representation of the log location.
-	Path() string
-
-	// Read returns the next log line. Returns `io.EOF` at the end of
-	// the log.
-	Read(context.Context) (string, error)
-
-	ConstLabels() prometheus.Labels
-	RemoteAddr() string
-	requireEmbed()
-}
-
-type LogSourceDefaults struct{}
-
-func (LogSourceDefaults) ConstLabels() prometheus.Labels {
-	return prometheus.Labels{}
-}
-func (LogSourceDefaults) RemoteAddr() string {
-	return "localhost"
-}
-func (LogSourceDefaults) requireEmbed() {}
 
 // Patterns for parsing log messages.
 var (
@@ -417,7 +389,7 @@ func (e *PostfixExporter) init() {
 	timeBuckets := []float64{1e-3, 1e-2, 1e-1, 1.0, 10, 1 * 60, 1 * 60 * 60, 24 * 60 * 60, 2 * 24 * 60 * 60}
 
 	e.once.Do(func() {
-		constLabels := LogSourceDefaults{}.ConstLabels()
+		constLabels := logsource.LogSourceDefaults{}.ConstLabels()
 		if e.logSrc != nil {
 			constLabels = e.logSrc.ConstLabels()
 		}
@@ -641,7 +613,7 @@ func (e *PostfixExporter) init() {
 }
 
 // NewPostfixExporter creates a new Postfix exporter instance.
-func NewPostfixExporter(s *showq.Showq, logSrc LogSource, logUnsupportedLines bool, serviceLabels ...ServiceLabel) *PostfixExporter {
+func NewPostfixExporter(s *showq.Showq, logSrc logsource.LogSource, logUnsupportedLines bool, serviceLabels ...ServiceLabel) *PostfixExporter {
 	postfixExporter := &PostfixExporter{
 		cleanupLabels:       defaultCleanupLabels,
 		lmtpLabels:          defaultLmtpLabels,
@@ -714,7 +686,7 @@ func (e *PostfixExporter) StartMetricCollection(ctx context.Context) {
 	for {
 		line, err := e.logSrc.Read(ctx)
 		if err != nil {
-			if err != SystemdNoMoreEntries {
+			if err != logsource.SystemdNoMoreEntries {
 				log.Printf("Couldn't read journal: %v", err)
 				return
 			}
