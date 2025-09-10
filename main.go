@@ -10,6 +10,7 @@ import (
 	_ "embed"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/hsn723/postfix_exporter/logsource"
 	"github.com/hsn723/postfix_exporter/showq"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -62,7 +63,7 @@ func main() {
 		virtualLabels = app.Flag("postfix.virtual_service_label", "User-defined service labels for the virtual service.").Default("virtual").Strings()
 	)
 
-	InitLogSourceFactories(app)
+	logsource.InitLogSourceFactories(app)
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 
 	if version == "" {
@@ -85,7 +86,7 @@ func main() {
 	}
 	log.Print(versionString)
 
-	logSrcs, err := NewLogSourceFromFactories(ctx)
+	logSrcs, err := logsource.NewLogSourceFromFactories(ctx)
 	if err != nil {
 		log.Fatalf("Error opening log source: %s", err)
 	}

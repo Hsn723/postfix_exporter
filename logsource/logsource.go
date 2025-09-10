@@ -1,11 +1,17 @@
-package main
+package logsource
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/prometheus/client_golang/prometheus"
+)
+
+var (
+	SystemdNoMoreEntries = errors.New("No more journal entries") // nolint:staticcheck
 )
 
 // A LogSourceFactory provides a repository of log sources that can be
@@ -25,6 +31,30 @@ type LogSourceCloser interface {
 	io.Closer
 	LogSource
 }
+
+// A LogSource is an interface to read log lines.
+type LogSource interface {
+	// Path returns a representation of the log location.
+	Path() string
+
+	// Read returns the next log line. Returns `io.EOF` at the end of
+	// the log.
+	Read(context.Context) (string, error)
+
+	ConstLabels() prometheus.Labels
+	RemoteAddr() string
+	requireEmbed()
+}
+
+type LogSourceDefaults struct{}
+
+func (LogSourceDefaults) ConstLabels() prometheus.Labels {
+	return prometheus.Labels{}
+}
+func (LogSourceDefaults) RemoteAddr() string {
+	return "localhost"
+}
+func (LogSourceDefaults) requireEmbed() {}
 
 var logSourceFactories []LogSourceFactory
 

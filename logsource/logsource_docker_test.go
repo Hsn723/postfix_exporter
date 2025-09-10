@@ -1,7 +1,7 @@
 //go:build !nodocker
 // +build !nodocker
 
-package main
+package logsource
 
 import (
 	"context"
