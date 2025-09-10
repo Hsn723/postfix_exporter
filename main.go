@@ -97,7 +97,7 @@ func main() {
 	}()
 	exporters := make([]*PostfixExporter, 0, len(logSrcs))
 	for _, logSrc := range logSrcs {
-		showqAddr := getShowqAddress(*postfixShowqPath, logSrc.Path(), *postfixShowqNetwork, *postfixShowqPort)
+		showqAddr := getShowqAddress(*postfixShowqPath, logSrc.RemoteAddr(), *postfixShowqNetwork, *postfixShowqPort)
 		s := showq.NewShowq(showqAddr).WithNetwork(*postfixShowqNetwork).WithConstLabels(logSrc.ConstLabels())
 		exporter := NewPostfixExporter(
 			s,
