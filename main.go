@@ -10,6 +10,7 @@ import (
 	_ "embed"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/hsn723/postfix_exporter/exporter"
 	"github.com/hsn723/postfix_exporter/logsource"
 	"github.com/hsn723/postfix_exporter/showq"
 	"github.com/prometheus/client_golang/prometheus"
@@ -73,24 +74,24 @@ func buildVersionString() string {
 	return versionString
 }
 
-func initializeExporters(logSrcs []logsource.LogSourceCloser) []*PostfixExporter {
-	exporters := make([]*PostfixExporter, 0, len(logSrcs))
+func initializeExporters(logSrcs []logsource.LogSourceCloser) []*exporter.PostfixExporter {
+	exporters := make([]*exporter.PostfixExporter, 0, len(logSrcs))
 
 	for _, logSrc := range logSrcs {
 		showqAddr := getShowqAddress(postfixShowqPath, logSrc.RemoteAddr(), postfixShowqNetwork, postfixShowqPort)
 		s := showq.NewShowq(showqAddr).WithNetwork(postfixShowqNetwork).WithConstLabels(logSrc.ConstLabels())
-		exporter := NewPostfixExporter(
+		exporter := exporter.NewPostfixExporter(
 			s,
 			logSrc,
 			logUnsupportedLines,
-			WithCleanupLabels(cleanupLabels),
-			WithLmtpLabels(lmtpLabels),
-			WithPipeLabels(pipeLabels),
-			WithQmgrLabels(qmgrLabels),
-			WithSmtpLabels(smtpLabels),
-			WithSmtpdLabels(smtpdLabels),
-			WithBounceLabels(bounceLabels),
-			WithVirtualLabels(virtualLabels),
+			exporter.WithCleanupLabels(cleanupLabels),
+			exporter.WithLmtpLabels(lmtpLabels),
+			exporter.WithPipeLabels(pipeLabels),
+			exporter.WithQmgrLabels(qmgrLabels),
+			exporter.WithSmtpLabels(smtpLabels),
+			exporter.WithSmtpdLabels(smtpdLabels),
+			exporter.WithBounceLabels(bounceLabels),
+			exporter.WithVirtualLabels(virtualLabels),
 		)
 		prometheus.MustRegister(exporter)
 		exporters = append(exporters, exporter)
