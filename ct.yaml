@@ -1,0 +1,3 @@
+target-branch: master
+validate-maintainers: true
+check-version-increment: true
