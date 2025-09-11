@@ -1,4 +1,6 @@
 [![GitHub release](https://img.shields.io/github/release/hsn723/postfix_exporter.svg?sort=semver&maxAge=60)](https://github.com/hsn723/postfix_exporter/releases)
+[![Helm release](https://img.shields.io/badge/dynamic/yaml.svg?label=chart&url=https://hsn723.github.io/postfix_exporter/index.yaml&query=$.entries[%22postfix-exporter%22][0].version&colorB=orange&logo=helm)](https://github.com/hsn723/postfix_exporter/releases)
+[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/postfix-exporter)](https://artifacthub.io/packages/helm/postfix-exporter/postfix-exporter)
 [![main](https://github.com/Hsn723/postfix_exporter/actions/workflows/main.yml/badge.svg?branch=master)](https://github.com/Hsn723/postfix_exporter/actions/workflows/main.yml)
 [![PkgGoDev](https://pkg.go.dev/badge/github.com/hsn723/postfix_exporter?tab=overview)](https://pkg.go.dev/github.com/hsn723/postfix_exporter?tab=overview)
 [![Go Report Card](https://goreportcard.com/badge/github.com/hsn723/postfix_exporter)](https://goreportcard.com/report/github.com/hsn723/postfix_exporter)
