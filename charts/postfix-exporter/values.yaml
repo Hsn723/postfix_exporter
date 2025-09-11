@@ -1,0 +1,38 @@
+image:
+  # image.repository -- postfix_exporter image repository to use.
+  repository: ghcr.io/hsn723/postfix_exporter
+
+  # image.tag -- postfix_exporter image tag to use.
+  # @default -- `{{ .Chart.AppVersion }}`
+  tag:  # 0.1.0
+
+  # image.pullPolicy -- postfix_exporter image pullPolicy.
+  pullPolicy:  # Always
+  # image.pullSecrets -- Specify imagePullSecrets.
+  # pullSecrets:
+
+deployment:
+  # deployment.replicas -- Specify the number of replicas of the Deployment.
+  replicas: 2
+  # deployment.metricsPort -- Specify the metrics port of the Deployment.
+  metricsPort: 9154
+  # deployment.extraArgs -- Specify extra arguments to pass to postfix_exporter.
+  extraArgs:
+    - --no-postfix.logfile_must_exist
+    # - --kubernetes.service=postfix
+    # - --postfix.showq_network=tcp
+
+  # deployment.resources -- Specify resources.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 20Mi
+
+  # deployment.terminationGracePeriodSeconds -- Specify terminationGracePeriodSeconds.
+  terminationGracePeriodSeconds: 10
+
+# serviceAccountName -- Specify the ServiceAccount name.
+serviceAccountName: postfix
+
+# createRbac -- Whether to create RBAC resources.
+createRbac: true

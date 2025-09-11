@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "project.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "project.labels" . | nindent 4 }}
+spec:
+  ports:
+  - name: metrics
+    port: {{ .Values.deployment.metricsPort }}
+    targetPort: {{ .Values.deployment.metricsPort }}
+  selector:
+    app.kubernetes.io/name: {{ include "project.name" . }}
