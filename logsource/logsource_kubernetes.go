@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"slices"
 	"sync"
 	"time"
 
@@ -178,7 +179,6 @@ func getLogTargets(ctx context.Context, clientset *kubernetes.Clientset, namespa
 }
 
 func getLogTargetsFromPodName(ctx context.Context, clientset *kubernetes.Clientset, namespace, podName string) ([]corev1.Pod, error) {
-	log.Printf("Looking for pod by name: %s/%s", namespace, podName)
 	pod, err := clientset.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pod %s in namespace %s: %v", podName, namespace, err)
@@ -187,7 +187,6 @@ func getLogTargetsFromPodName(ctx context.Context, clientset *kubernetes.Clients
 }
 
 func getLogTargetsFromService(ctx context.Context, clientset *kubernetes.Clientset, namespace, serviceName string) ([]corev1.Pod, error) {
-	log.Printf("Looking for service by name: %s/%s", namespace, serviceName)
 	svc, err := clientset.CoreV1().Services(namespace).Get(ctx, serviceName, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get service %s in namespace %s: %v", serviceName, namespace, err)
@@ -219,7 +218,6 @@ func getLogTargetsFromService(ctx context.Context, clientset *kubernetes.Clients
 }
 
 func getLogTargetsFromLabelSelector(ctx context.Context, clientset *kubernetes.Clientset, namespace, labelSelector string) ([]corev1.Pod, error) {
-	log.Printf("Looking for pods with label selector: %s in namespace: %s", labelSelector, namespace)
 	podList, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: labelSelector,
 	})
@@ -337,11 +335,14 @@ func (s *KubernetesLogSource) RemoteAddr() string {
 // kubernetesLogSourceFactory is a factory that can create Kubernetes log sources
 // from command line flags.
 type kubernetesLogSourceFactory struct {
+	LogSourceFactoryDefaults
+	clientset      *kubernetes.Clientset
 	namespace      string
 	podName        string
 	serviceName    string
 	containerName  string
 	kubeconfigPath string
+	watchedPods    []string
 	enable         bool
 }
 
@@ -372,8 +373,10 @@ func (f *kubernetesLogSourceFactory) New(ctx context.Context) ([]LogSourceCloser
 	if err != nil {
 		return nil, fmt.Errorf("failed to create kubernetes client: %v", err)
 	}
+	f.clientset = clientset
 
 	namespace := determineNamespace(f.namespace, inCluster)
+	f.namespace = namespace
 	log.Printf("Using namespace: %s, in-cluster: %t", namespace, inCluster)
 
 	pods, err := getLogTargets(ctx, clientset, namespace, f.serviceName, f.podName)
@@ -387,6 +390,7 @@ func (f *kubernetesLogSourceFactory) New(ctx context.Context) ([]LogSourceCloser
 	var wg sync.WaitGroup
 	wg.Add(len(pods))
 	for _, pod := range pods {
+		f.watchedPods = append(f.watchedPods, pod.Name)
 		go func(pod corev1.Pod) {
 			defer wg.Done()
 			srcs := NewKubernetesLogSource(ctx, namespace, f.serviceName, f.containerName, pod, clientset)
@@ -395,6 +399,7 @@ func (f *kubernetesLogSourceFactory) New(ctx context.Context) ([]LogSourceCloser
 			}
 		}(pod)
 	}
+	slices.Sort(f.watchedPods)
 	go func() {
 		wg.Wait()
 		close(logSourcesChan)
@@ -403,6 +408,26 @@ func (f *kubernetesLogSourceFactory) New(ctx context.Context) ([]LogSourceCloser
 		logSources = append(logSources, src)
 	}
 	return logSources, nil
+}
+
+func (f *kubernetesLogSourceFactory) Watchdog(ctx context.Context) bool {
+	if !f.enable || f.clientset == nil {
+		return false
+	}
+
+	pods, err := getLogTargets(ctx, f.clientset, f.namespace, f.serviceName, f.podName)
+	if err != nil {
+		log.Printf("Kubernetes watchdog: failed to get log targets: %v", err)
+		// do not restart exporter if we cannot get log targets as this might be a transient error
+		return false
+	}
+
+	var currentPodNames []string
+	for _, pod := range pods {
+		currentPodNames = append(currentPodNames, pod.Name)
+	}
+	slices.Sort(currentPodNames)
+	return !slices.Equal(f.watchedPods, currentPodNames)
 }
 
 func init() {
