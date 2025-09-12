@@ -71,6 +71,7 @@ func (s *DockerLogSource) Read(ctx context.Context) (string, error) {
 // A dockerLogSourceFactory is a factory that can create
 // DockerLogSources from command line flags.
 type dockerLogSourceFactory struct {
+	LogSourceFactoryDefaults
 	containerID string
 	enable      bool
 }

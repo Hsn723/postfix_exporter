@@ -65,6 +65,7 @@ func (s *FileLogSource) Read(ctx context.Context) (string, error) {
 // Because this factory is enabled by default, it must always be
 // registered last.
 type fileLogSourceFactory struct {
+	LogSourceFactoryDefaults
 	path      string
 	mustExist bool
 	debug     bool
