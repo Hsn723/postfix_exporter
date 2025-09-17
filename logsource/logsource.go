@@ -25,7 +25,19 @@ type LogSourceFactory interface {
 	// flags have been parsed. Returning `nil, nil`, means the user
 	// didn't want this log source.
 	New(context.Context) ([]LogSourceCloser, error)
+
+	// Watchdog indicates whether this log source is unhealthy.
+	Watchdog(context.Context) bool
+
+	requireEmbed()
 }
+
+type LogSourceFactoryDefaults struct{}
+
+func (LogSourceFactoryDefaults) Watchdog(context.Context) bool {
+	return false
+}
+func (LogSourceFactoryDefaults) requireEmbed() {}
 
 type LogSourceCloser interface {
 	io.Closer
@@ -91,4 +103,15 @@ func NewLogSourceFromFactories(ctx context.Context) ([]LogSourceCloser, error) {
 	}
 
 	return nil, fmt.Errorf("no log source configured")
+}
+
+// IsWatchdogUnhealthy returns true if any of the log sources report
+// being unhealthy.
+func IsWatchdogUnhealthy(ctx context.Context) bool {
+	for _, f := range logSourceFactories {
+		if f.Watchdog(ctx) {
+			return true
+		}
+	}
+	return false
 }

@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	_ "embed"
 
@@ -46,6 +47,8 @@ var (
 	smtpdLabels   []string
 	bounceLabels  []string
 	virtualLabels []string
+
+	useWatchdog bool
 )
 
 func getShowqAddress(path, remoteAddr, network string, port int) string {
@@ -123,6 +126,7 @@ func setupMetricsServer(versionString string) error {
 func init() {
 	app = kingpin.New("postfix_exporter", "Prometheus metrics exporter for postfix")
 	app.Flag("version", "Print version information").BoolVar(&versionFlag)
+	app.Flag("watchdog", "Use watchdog to monitor log sources.").Default("false").BoolVar(&useWatchdog)
 	toolkitFlags = kingpinflag.AddFlags(app, ":9154")
 	app.Flag("web.telemetry-path", "Path under which to expose metrics.").Default("/metrics").StringVar(&metricsPath)
 	app.Flag("postfix.showq_path", "Path at which Postfix places its showq socket.").Default("/var/spool/postfix/public/showq").StringVar(&postfixShowqPath)
@@ -176,6 +180,21 @@ func main() {
 	defer cancelFunc()
 	for _, exporter := range exporters {
 		go exporter.StartMetricCollection(ctx)
+	}
+
+	// Start watchdog if enabled
+	if useWatchdog {
+		go func(ctx context.Context) {
+			ticker := time.NewTicker(5 * time.Second)
+			defer ticker.Stop()
+			for range ticker.C {
+				if logsource.IsWatchdogUnhealthy(ctx) {
+					log.Printf("Watchdog: log source unhealthy, exiting")
+					cancelFunc()
+					os.Exit(1)
+				}
+			}
+		}(ctx)
 	}
 
 	server := &http.Server{}
