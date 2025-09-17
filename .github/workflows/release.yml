@@ -84,3 +84,7 @@ jobs:
         uses: actions/attest-build-provenance@v3
         with:
           subject-checksums: ./dist/checksums.txt
+      - name: Attest image digests
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-checksums: ./dist/digests.txt

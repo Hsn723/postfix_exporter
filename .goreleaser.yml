@@ -133,3 +133,5 @@ docker_signs:
       - 'sign'
       - '--yes'
       - '${artifact}'
+docker_digest:
+  name_template: 'digests.txt'
