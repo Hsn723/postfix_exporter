@@ -31,6 +31,12 @@ spec:
           protocol: TCP
         args:
           - --kubernetes.enable
+          {{ if .Values.postfixServiceName }}
+          - --kubernetes.service={{ .Values.postfixServiceName }}
+          {{ end }}
+          {{ if .Values.useTCPShowq }}
+          - --postfix.showq_network=tcp
+          {{ end }}
           {{- range .Values.deployment.extraArgs }}
           - {{ . }}
           {{- end }}

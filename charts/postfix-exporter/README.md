@@ -26,6 +26,8 @@ helm install --create-namespace --namespace postfix-exporter postfix-exporter -f
 | Key                                      | Type   | Default                                     | Description                               |
 |------------------------------------------|--------|---------------------------------------------|-------------------------------------------|
 | serviceAccountName                       | string | "postfix"                                   | The name for the service account          |
+| postfixServiceName                       | string | ""                                          | The name for the postfix Service          |
+| useTCPShowq                              | bool   | `true`                                      | The name for the postfix Service          |
 | createRbac                               | bool   | `true`                                      | Whether to create RBAC resources          |
 | image.repository                         | string | `"ghcr.io/hsn723/postfix_exporter"`         | Image repository to use                   |
 | image.tag                                | string | `{{ .Chart.AppVersion }}`                   | Image tag to use                          |
@@ -35,7 +37,7 @@ helm install --create-namespace --namespace postfix-exporter postfix-exporter -f
 | deployment.metricsPort                   | int    | `9154`                                      | The metrics server port                   |
 | deployment.resources                     | object | `{"requests":{"cpu":100m,"memory":"20Mi"}}` | Resources requested for Deployment        |
 | deployment.terminationGracePeriodSeconds | int    | `10`                                        | terminationGracePeriodSeconds for the Pod |
-| deployment.extraArgs                     | list   | `["--kubernetes.service=postfix", "--postfix.showq_network=tcp"]` | Additional arguments for the controller |
+| deployment.extraArgs                     | list   | `[]`                                        |   Additional arguments for the controller |
 
 
 ## Generate Manifests
