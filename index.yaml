@@ -3,6 +3,18 @@ entries:
   postfix-exporter:
   - apiVersion: v2
     appVersion: 0.16.0
+    created: "2025-09-18T02:55:37.349803555Z"
+    description: A Prometheus exporter for Postfix mail server metrics
+    digest: edb4bd20add6502e1e635ce4229f771ba53fb13440195aa356480cb26c02f59d
+    maintainers:
+    - name: hsn723
+    name: postfix-exporter
+    type: application
+    urls:
+    - https://github.com/Hsn723/postfix_exporter/releases/download/helm-v0.1.2/postfix-exporter-0.1.2.tgz
+    version: 0.1.2
+  - apiVersion: v2
+    appVersion: 0.16.0
     created: "2025-09-17T06:12:28.552120608Z"
     description: A Prometheus exporter for Postfix mail server metrics
     digest: e5e3cbfa6c12de1851fef82baa8ffde4b06a48754c07c30ae2b755d88ee110ec
@@ -25,4 +37,4 @@ entries:
     urls:
     - https://github.com/Hsn723/postfix_exporter/releases/download/helm-v0.1.0/postfix-exporter-0.1.0.tgz
     version: 0.1.0
-generated: "2025-09-17T06:12:28.552129484Z"
+generated: "2025-09-18T02:55:37.349820476Z"
