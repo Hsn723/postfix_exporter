@@ -17,10 +17,7 @@ deployment:
   # deployment.metricsPort -- Specify the metrics port of the Deployment.
   metricsPort: 9154
   # deployment.extraArgs -- Specify extra arguments to pass to postfix_exporter.
-  extraArgs:
-    - --no-postfix.logfile_must_exist
-    # - --kubernetes.service=postfix
-    # - --postfix.showq_network=tcp
+  # extraArgs:
 
   # deployment.resources -- Specify resources.
   resources:
@@ -34,5 +31,11 @@ deployment:
 # serviceAccountName -- Specify the ServiceAccount name.
 serviceAccountName: postfix
 
+# postfixServiceName -- Specify the Postfix service name to monitor.
+# postfixServiceName:
+
 # createRbac -- Whether to create RBAC resources.
 createRbac: true
+
+# useTCPShowq -- Whether to use TCP for showq command.
+useTCPShowq: true

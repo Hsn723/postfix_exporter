@@ -2,7 +2,7 @@ apiVersion: v2
 name: postfix-exporter
 description: A Prometheus exporter for Postfix mail server metrics
 type: application
-version: 0.1.1
+version: 0.1.2
 appVersion: "0.16.0"
 maintainers:
   - name: hsn723
