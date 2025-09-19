@@ -102,6 +102,28 @@ func initializeExporters(logSrcs []logsource.LogSourceCloser) []*exporter.Postfi
 	return exporters
 }
 
+func runExporter(ctx context.Context) {
+	logSrcs, err := logsource.NewLogSourceFromFactories(ctx)
+	if err != nil {
+		log.Fatalf("Error opening log source: %s", err)
+	}
+	exporters := initializeExporters(logSrcs)
+
+	for _, exporter := range exporters {
+		go exporter.StartMetricCollection(ctx)
+	}
+
+	go func() {
+		<-ctx.Done()
+		for _, ls := range logSrcs {
+			ls.Close()
+		}
+		for _, exporter := range exporters {
+			prometheus.Unregister(exporter)
+		}
+	}()
+}
+
 func setupMetricsServer(versionString string) error {
 	http.Handle(metricsPath, promhttp.Handler())
 	lc := web.LandingConfig{
@@ -161,40 +183,29 @@ func main() {
 	versionString := buildVersionString()
 	log.Print(versionString)
 
-	logSrcs, err := logsource.NewLogSourceFromFactories(ctx)
-	if err != nil {
-		log.Fatalf("Error opening log source: %s", err)
-	}
-	defer func() {
-		for _, ls := range logSrcs {
-			ls.Close()
-		}
-	}()
-	exporters := initializeExporters(logSrcs)
-
 	if err := setupMetricsServer(versionString); err != nil {
 		log.Fatalf("Failed to create landing page: %s", err)
 	}
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 	defer cancelFunc()
-	for _, exporter := range exporters {
-		go exporter.StartMetricCollection(ctx)
-	}
+	runExporter(ctx)
 
 	// Start watchdog if enabled
 	if useWatchdog {
-		go func(ctx context.Context) {
+		go func() {
 			ticker := time.NewTicker(5 * time.Second)
+			watchdogCtx := context.Background()
 			defer ticker.Stop()
 			for range ticker.C {
-				if logsource.IsWatchdogUnhealthy(ctx) {
-					log.Printf("Watchdog: log source unhealthy, exiting")
+				if logsource.IsWatchdogUnhealthy(watchdogCtx) {
+					log.Printf("Watchdog: log source unhealthy, reloading")
 					cancelFunc()
-					os.Exit(1)
+					ctx, cancelFunc = context.WithCancel(context.Background())
+					runExporter(ctx)
 				}
 			}
-		}(ctx)
+		}()
 	}
 
 	server := &http.Server{}

@@ -281,6 +281,9 @@ func (s *KubernetesLogSource) initializeLogStream(ctx context.Context) error {
 }
 
 func (s *KubernetesLogSource) Close() error {
+	if s.logStream.stream == nil {
+		return nil
+	}
 	return s.logStream.stream.Close()
 }
 
@@ -389,8 +392,9 @@ func (f *kubernetesLogSourceFactory) New(ctx context.Context) ([]LogSourceCloser
 	var logSourcesChan = make(chan LogSourceCloser)
 	var wg sync.WaitGroup
 	wg.Add(len(pods))
+	watchedPods := make([]string, 0, len(pods))
 	for _, pod := range pods {
-		f.watchedPods = append(f.watchedPods, pod.Name)
+		watchedPods = append(watchedPods, pod.Name)
 		go func(pod corev1.Pod) {
 			defer wg.Done()
 			srcs := NewKubernetesLogSource(ctx, namespace, f.serviceName, f.containerName, pod, clientset)
@@ -399,7 +403,8 @@ func (f *kubernetesLogSourceFactory) New(ctx context.Context) ([]LogSourceCloser
 			}
 		}(pod)
 	}
-	slices.Sort(f.watchedPods)
+	slices.Sort(watchedPods)
+	f.watchedPods = watchedPods
 	go func() {
 		wg.Wait()
 		close(logSourcesChan)
