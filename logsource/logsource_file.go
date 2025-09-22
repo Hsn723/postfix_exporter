@@ -3,7 +3,7 @@ package logsource
 import (
 	"context"
 	"io"
-	"log"
+	"log/slog"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/nxadm/tail"
@@ -91,7 +91,7 @@ func (f *fileLogSourceFactory) New(ctx context.Context) ([]LogSourceCloser, erro
 	if f.path == "" {
 		return nil, nil
 	}
-	log.Printf("Reading log events from %s", f.path)
+	slog.Info("Reading log events from file", "path", f.path)
 	logSource, err := NewFileLogSource(f.path, f.config())
 	if err != nil {
 		return nil, err

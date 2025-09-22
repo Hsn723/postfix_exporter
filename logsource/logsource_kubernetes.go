@@ -8,7 +8,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"os"
 	"slices"
 	"sync"
@@ -65,7 +65,7 @@ func createKubernetesLogSource(ctx context.Context, namespace, serviceName, cont
 	cls, err := getContainerLogStream(ctx, namespace, pod.Name, containerName, clientset)
 	// Even if we fail to get the log stream now, we can retry later in Read().
 	if err != nil {
-		log.Printf("Failed to get log stream for pod %s container %s: %v", pod.Name, containerName, err)
+		slog.Error("Failed to get log stream for pod container", "pod", pod.Name, "container", containerName, "error", err)
 	}
 
 	return &KubernetesLogSource{
@@ -94,7 +94,7 @@ func getContainerLogStream(ctx context.Context, namespace, podName, containerNam
 		if pod.Status.Phase == corev1.PodRunning {
 			break
 		}
-		log.Printf("Waiting for pod %s to be running (current phase: %s)", podName, pod.Status.Phase)
+		slog.Info("Waiting for pod to be running", "pod", podName, "phase", pod.Status.Phase)
 		time.Sleep(5 * time.Second)
 	}
 
@@ -104,7 +104,7 @@ func getContainerLogStream(ctx context.Context, namespace, podName, containerNam
 	if err != nil {
 		return containerLogStream{}, fmt.Errorf("failed to create log stream for pod %s container %s: %v", podName, containerName, err)
 	}
-	log.Printf("Started log stream for pod %s container %s", podName, containerName)
+	slog.Info("Started log stream for pod container", "pod", podName, "container", containerName)
 
 	return containerLogStream{
 		stream:  logStream,
@@ -122,7 +122,7 @@ func createClientset(kubeconfigPath string) (*kubernetes.Clientset, bool, error)
 	if err != nil {
 		inCluster = false
 		// If in-cluster config fails, try to use local kubeconfig for development
-		log.Printf("Failed to get in-cluster config, trying local kubeconfig: %v", err)
+		slog.Debug("Failed to get in-cluster config, trying local kubeconfig", "error", err)
 
 		// Use provided kubeconfig path or default location
 		config, err = clientcmd.BuildConfigFromFlags("", kubeconfigPath)
@@ -130,7 +130,6 @@ func createClientset(kubeconfigPath string) (*kubernetes.Clientset, bool, error)
 			return nil, inCluster, fmt.Errorf("failed to create kubernetes config from kubeconfig: %v", err)
 		}
 	} else {
-		log.Printf("Using in-cluster kubernetes config")
 		inCluster = true
 	}
 
@@ -211,7 +210,7 @@ func getLogTargetsFromService(ctx context.Context, clientset *kubernetes.Clients
 		if areReplicasReady {
 			break
 		}
-		log.Printf("Waiting for pods of service %s to be ready", serviceName)
+		slog.Info("Waiting for pods of service to be ready", "service", serviceName)
 		time.Sleep(5 * time.Second)
 	}
 	return pods, nil
@@ -380,13 +379,13 @@ func (f *kubernetesLogSourceFactory) New(ctx context.Context) ([]LogSourceCloser
 
 	namespace := determineNamespace(f.namespace, inCluster)
 	f.namespace = namespace
-	log.Printf("Using namespace: %s, in-cluster: %t", namespace, inCluster)
+	slog.Info("Using namespace", "namespace", namespace, "in-cluster", inCluster)
 
 	pods, err := getLogTargets(ctx, clientset, namespace, f.serviceName, f.podName)
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("Found %d pods to read logs from", len(pods))
+	slog.Info("Found pods to read logs from", "count", len(pods))
 
 	var logSources []LogSourceCloser
 	var logSourcesChan = make(chan LogSourceCloser)
@@ -422,7 +421,7 @@ func (f *kubernetesLogSourceFactory) Watchdog(ctx context.Context) bool {
 
 	pods, err := getLogTargets(ctx, f.clientset, f.namespace, f.serviceName, f.podName)
 	if err != nil {
-		log.Printf("Kubernetes watchdog: failed to get log targets: %v", err)
+		slog.Error("Kubernetes watchdog: failed to get log targets", "error", err)
 		// do not restart exporter if we cannot get log targets as this might be a transient error
 		return false
 	}

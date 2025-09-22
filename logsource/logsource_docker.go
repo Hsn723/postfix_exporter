@@ -7,7 +7,7 @@ import (
 	"bufio"
 	"context"
 	"io"
-	"log"
+	"log/slog"
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -86,7 +86,7 @@ func (f *dockerLogSourceFactory) New(ctx context.Context) ([]LogSourceCloser, er
 		return nil, nil
 	}
 
-	log.Println("Reading log events from Docker")
+	slog.Info("Reading log events from Docker")
 	c, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		return nil, err

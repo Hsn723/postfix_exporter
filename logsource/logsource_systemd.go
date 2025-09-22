@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -118,7 +118,7 @@ func (s *SystemdLogSource) Read(ctx context.Context) (string, error) {
 		e.Fields["_PID"],
 		e.Fields["MESSAGE"],
 	)
-	//log.Printf("Found entry: %s\n", entry)
+	slog.Debug("Found entry", "entry", entry)
 	return entry, nil
 }
 
@@ -142,7 +142,7 @@ func (f *systemdLogSourceFactory) New(ctx context.Context) ([]LogSourceCloser, e
 		return nil, nil
 	}
 
-	log.Println("Reading log events from systemd")
+	slog.Info("Reading log events from systemd")
 	j, path, err := newSystemdJournal(f.path)
 	if err != nil {
 		return nil, err

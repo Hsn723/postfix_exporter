@@ -41,6 +41,8 @@ These options can be used when starting the `postfix_exporter`
 | `--postfix.bounce_service_label`  | User-defined service labels for the bounce service.  | `bounce`                 |
 | `--postfix.virtual_service_label` | User-defined service labels for the virtual service. | `virtual`                |
 | `--log.unsupported`      | Log all unsupported lines                            | `false`                           |
+| `--log.level`            | Logging level                                        | `"info"`                          |
+| `--log.format`           | Logging format                                       | `"logfmt"`                        |
 | `--docker.enable`        | Read from the Docker logs instead of a file          | `false`                           |
 | `--docker.container.id`  | The container to read Docker logs from               | `postfix`                         |
 | `--systemd.enable`       | Read from the systemd journal instead of file        | `false`                           |
