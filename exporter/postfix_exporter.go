@@ -15,7 +15,7 @@ package exporter
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"regexp"
 	"slices"
 	"strconv"
@@ -298,7 +298,7 @@ func (e *PostfixExporter) CollectFromLogLine(line string) {
 
 func (e *PostfixExporter) addToUnsupportedLine(line string, subprocess string, level string) {
 	if e.logUnsupportedLines {
-		log.Printf("Unsupported Line: %v", line)
+		slog.Warn("Unsupported Line", "line", line)
 	}
 	e.unsupportedLogEntries.WithLabelValues(subprocess, level).Inc()
 }
@@ -306,14 +306,14 @@ func (e *PostfixExporter) addToUnsupportedLine(line string, subprocess string, l
 func addToHistogram(h prometheus.Histogram, value, fieldName string) {
 	float, err := strconv.ParseFloat(value, 64)
 	if err != nil {
-		log.Printf("Couldn't convert value '%s' for %v: %v", value, fieldName, err)
+		slog.Error("Couldn't convert value for histogram", "value", value, "field", fieldName, "error", err)
 	}
 	h.Observe(float)
 }
 func addToHistogramVec(h *prometheus.HistogramVec, value, fieldName string, labels ...string) {
 	float, err := strconv.ParseFloat(value, 64)
 	if err != nil {
-		log.Printf("Couldn't convert value '%s' for %v: %v", value, fieldName, err)
+		slog.Error("Couldn't convert value for histogram vector", "value", value, "field", fieldName, "error", err)
 	}
 	h.WithLabelValues(labels...).Observe(float)
 }
@@ -687,7 +687,7 @@ func (e *PostfixExporter) StartMetricCollection(ctx context.Context) {
 		line, err := e.logSrc.Read(ctx)
 		if err != nil {
 			if err != logsource.SystemdNoMoreEntries {
-				log.Printf("Couldn't read journal: %v", err)
+				slog.Error("Couldn't read journal", "error", err.Error)
 				return
 			}
 		}
@@ -707,7 +707,7 @@ func (e *PostfixExporter) Collect(ch chan<- prometheus.Metric) {
 		if err == nil {
 			postfixUpGauge.Set(1)
 		} else {
-			log.Printf("Failed to scrape showq: %s", err)
+			slog.Error("Failed to scrape showq", "error", err.Error)
 			postfixUpGauge.Set(0)
 		}
 		e.postfixUp.Collect(ch)

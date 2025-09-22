@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"time"
@@ -39,6 +39,10 @@ var (
 	postfixShowqNetwork string
 	logUnsupportedLines bool
 
+	logLevel  string
+	logFormat string
+	logConfig *promslog.Config
+
 	cleanupLabels []string
 	lmtpLabels    []string
 	pipeLabels    []string
@@ -58,7 +62,7 @@ func getShowqAddress(path, remoteAddr, network string, port int) string {
 	case "tcp", "tcp4", "tcp6":
 		return fmt.Sprintf("%s:%d", remoteAddr, port)
 	default:
-		log.Fatalf("Unsupported network type: %s", network)
+		logFatal("Unsupported network type", "network", network)
 		return ""
 	}
 }
@@ -75,6 +79,11 @@ func buildVersionString() string {
 		versionString += " by: " + builtBy
 	}
 	return versionString
+}
+
+func logFatal(msg string, args ...any) {
+	slog.Error(msg, args...)
+	os.Exit(1)
 }
 
 func initializeExporters(logSrcs []logsource.LogSourceCloser) []*exporter.PostfixExporter {
@@ -105,7 +114,7 @@ func initializeExporters(logSrcs []logsource.LogSourceCloser) []*exporter.Postfi
 func runExporter(ctx context.Context) {
 	logSrcs, err := logsource.NewLogSourceFromFactories(ctx)
 	if err != nil {
-		log.Fatalf("Error opening log source: %s", err)
+		logFatal("Error opening log source", "error", err.Error)
 	}
 	exporters := initializeExporters(logSrcs)
 
@@ -155,6 +164,8 @@ func init() {
 	app.Flag("postfix.showq_port", "TCP port at which Postfix's showq service is listening.").Default("10025").IntVar(&postfixShowqPort)
 	app.Flag("postfix.showq_network", "Network type for Postfix's showq service").Default("unix").StringVar(&postfixShowqNetwork)
 	app.Flag("log.unsupported", "Log all unsupported lines.").BoolVar(&logUnsupportedLines)
+	app.Flag("log.level", "Log level: debug, info, warn, error").Default("info").StringVar(&logLevel)
+	app.Flag("log.format", "Log format: logfmt, json").Default("logfmt").StringVar(&logFormat)
 
 	app.Flag("postfix.cleanup_service_label", "User-defined service labels for the cleanup service.").Default("cleanup").StringsVar(&cleanupLabels)
 	app.Flag("postfix.lmtp_service_label", "User-defined service labels for the lmtp service.").Default("lmtp").StringsVar(&lmtpLabels)
@@ -164,13 +175,26 @@ func init() {
 	app.Flag("postfix.smtpd_service_label", "User-defined service labels for the smtpd service.").Default("smtpd").StringsVar(&smtpdLabels)
 	app.Flag("postfix.bounce_service_label", "User-defined service labels for the bounce service.").Default("bounce").StringsVar(&bounceLabels)
 	app.Flag("postfix.virtual_service_label", "User-defined service labels for the virtual service.").Default("virtual").StringsVar(&virtualLabels)
+
+	logsource.InitLogSourceFactories(app)
+	kingpin.MustParse(app.Parse(os.Args[1:]))
+
+	logConfig = &promslog.Config{
+		Level:  promslog.NewLevel(),
+		Format: promslog.NewFormat(),
+	}
+	if err := logConfig.Level.Set(logLevel); err != nil {
+		logFatal("Invalid log level", "level", logLevel, "error", err.Error())
+	}
+	if err := logConfig.Format.Set(logFormat); err != nil {
+		logFatal("Invalid log format", "format", logFormat, "error", err.Error())
+	}
 }
 
 func main() {
 	ctx := context.Background()
-
-	logsource.InitLogSourceFactories(app)
-	kingpin.MustParse(app.Parse(os.Args[1:]))
+	logger := promslog.New(logConfig)
+	slog.SetDefault(logger)
 
 	if version == "" {
 		version = fallbackVersion
@@ -181,10 +205,10 @@ func main() {
 		os.Exit(0)
 	}
 	versionString := buildVersionString()
-	log.Print(versionString)
+	slog.Info(versionString)
 
 	if err := setupMetricsServer(versionString); err != nil {
-		log.Fatalf("Failed to create landing page: %s", err)
+		logFatal("Failed to create landing page", "error", err.Error)
 	}
 
 	ctx, cancelFunc := context.WithCancel(ctx)
@@ -199,7 +223,7 @@ func main() {
 			defer ticker.Stop()
 			for range ticker.C {
 				if logsource.IsWatchdogUnhealthy(watchdogCtx) {
-					log.Printf("Watchdog: log source unhealthy, reloading")
+					slog.Warn("Watchdog: log source unhealthy, reloading")
 					cancelFunc()
 					ctx, cancelFunc = context.WithCancel(context.Background())
 					runExporter(ctx)
@@ -209,6 +233,7 @@ func main() {
 	}
 
 	server := &http.Server{}
-	logger := promslog.New(&promslog.Config{})
-	log.Fatal(web.ListenAndServe(server, toolkitFlags, logger))
+	if err := web.ListenAndServe(server, toolkitFlags, logger); err != nil {
+		logFatal("Error starting HTTP server", "error", err.Error)
+	}
 }
