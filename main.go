@@ -114,7 +114,7 @@ func initializeExporters(logSrcs []logsource.LogSourceCloser) []*exporter.Postfi
 func runExporter(ctx context.Context) {
 	logSrcs, err := logsource.NewLogSourceFromFactories(ctx)
 	if err != nil {
-		logFatal("Error opening log source", "error", err.Error)
+		logFatal("Error opening log source", "error", err.Error())
 	}
 	exporters := initializeExporters(logSrcs)
 
