@@ -145,16 +145,17 @@ func (s *Showq) init() {
 }
 
 func (s *Showq) Collect(ch chan<- prometheus.Metric) error {
+	// Lock BEFORE opening socket to serialize all showq queries
+	// This prevents concurrent connections to showq daemon which may not handle them properly
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	fd, err := net.Dial(s.network, s.address)
 	if err != nil {
 		return err
 	}
 	defer fd.Close()
 	s.init()
-
-	// Lock to prevent concurrent scrapes from racing on histogram Reset() and Observe()
-	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	return s.collectBinaryShowqFromReader(fd, ch)
 }
