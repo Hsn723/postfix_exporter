@@ -15,6 +15,7 @@ import (
 )
 
 type Showq struct {
+	mu                sync.Mutex // Protects histogram/gauge operations during concurrent scrapes
 	ageHistogram      *prometheus.HistogramVec
 	sizeHistogram     *prometheus.HistogramVec
 	queueMessageGauge *prometheus.GaugeVec
@@ -144,12 +145,18 @@ func (s *Showq) init() {
 }
 
 func (s *Showq) Collect(ch chan<- prometheus.Metric) error {
+	// Lock BEFORE opening socket to serialize all showq queries
+	// This prevents concurrent connections to showq daemon which may not handle them properly
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	fd, err := net.Dial(s.network, s.address)
 	if err != nil {
 		return err
 	}
 	defer fd.Close()
 	s.init()
+
 	return s.collectBinaryShowqFromReader(fd, ch)
 }
 
