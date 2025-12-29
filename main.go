@@ -111,7 +111,8 @@ func initializeExporters(logSrcs []logsource.LogSourceCloser) []*exporter.Postfi
 	return exporters
 }
 
-func runExporter(ctx context.Context) {
+func runExporter(ctx context.Context) <-chan struct{} {
+	done := make(chan struct{})
 	logSrcs, err := logsource.NewLogSourceFromFactories(ctx)
 	if err != nil {
 		logFatal("Error opening log source", "error", err.Error())
@@ -123,14 +124,19 @@ func runExporter(ctx context.Context) {
 	}
 
 	go func() {
+		defer close(done)
 		<-ctx.Done()
 		for _, ls := range logSrcs {
-			ls.Close()
+			err := ls.Close()
+			if err != nil {
+				slog.Error("Error closing log source", "error", err.Error())
+			}
 		}
 		for _, exporter := range exporters {
 			prometheus.Unregister(exporter)
 		}
 	}()
+	return done
 }
 
 func setupMetricsServer(versionString string) error {
@@ -213,7 +219,7 @@ func main() {
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 	defer cancelFunc()
-	runExporter(ctx)
+	done := runExporter(ctx)
 
 	// Start watchdog if enabled
 	if useWatchdog {
@@ -225,8 +231,11 @@ func main() {
 				if logsource.IsWatchdogUnhealthy(watchdogCtx) {
 					slog.Warn("Watchdog: log source unhealthy, reloading")
 					cancelFunc()
+					if done != nil {
+						<-done
+					}
 					ctx, cancelFunc = context.WithCancel(context.Background())
-					runExporter(ctx)
+					done = runExporter(ctx)
 				}
 			}
 		}()

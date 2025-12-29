@@ -2,11 +2,13 @@ package logsource
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/nxadm/tail"
+	"gopkg.in/tomb.v1"
 )
 
 var defaultConfig = tail.Config{
@@ -19,7 +21,8 @@ var defaultConfig = tail.Config{
 
 // A FileLogSource can read lines from a file.
 type FileLogSource struct {
-	tailer *tail.Tail
+	tailer    *tail.Tail
+	unhealthy bool
 	LogSourceDefaults
 }
 
@@ -33,13 +36,13 @@ func NewFileLogSource(path string, config tail.Config) (*FileLogSource, error) {
 }
 
 func (s *FileLogSource) Close() error {
-	defer s.tailer.Cleanup()
 	go func() {
 		// Stop() waits for the tailer goroutine to shut down, but it
 		// can be blocking on sending on the Lines channel...
 		for range s.tailer.Lines {
 		}
 	}()
+	// Do not call .CleanUp() if the file should be tailed again
 	return s.tailer.Stop()
 }
 
@@ -51,6 +54,10 @@ func (s *FileLogSource) Read(ctx context.Context) (string, error) {
 	select {
 	case line, ok := <-s.tailer.Lines:
 		if !ok {
+			s.unhealthy = true
+			if tailErr := s.tailer.Tomb.Err(); tailErr != nil && !errors.Is(tailErr, tomb.ErrStillAlive) {
+				return "", tailErr
+			}
 			return "", io.EOF
 		}
 		return line.Text, nil
@@ -69,6 +76,7 @@ type fileLogSourceFactory struct {
 	path      string
 	mustExist bool
 	debug     bool
+	source    *FileLogSource
 }
 
 func (f *fileLogSourceFactory) Init(app *kingpin.Application) {
@@ -96,5 +104,13 @@ func (f *fileLogSourceFactory) New(ctx context.Context) ([]LogSourceCloser, erro
 	if err != nil {
 		return nil, err
 	}
+	f.source = logSource
 	return []LogSourceCloser{logSource}, nil
+}
+
+func (f *fileLogSourceFactory) Watchdog(ctx context.Context) bool {
+	if f.source == nil {
+		return false
+	}
+	return f.source.unhealthy
 }
