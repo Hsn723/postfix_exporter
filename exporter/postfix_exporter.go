@@ -707,7 +707,7 @@ func (e *PostfixExporter) Collect(ch chan<- prometheus.Metric) {
 		if err == nil {
 			postfixUpGauge.Set(1)
 		} else {
-			slog.Error("Failed to scrape showq", "error", err.Error)
+			slog.Error("Failed to scrape showq", "error", err.Error())
 			postfixUpGauge.Set(0)
 		}
 		e.postfixUp.Collect(ch)
