@@ -49,9 +49,10 @@ type PostfixExporter struct {
 	cleanupRejects     prometheus.Counter
 	cleanupNotAccepted prometheus.Counter
 
-	qmgrExpires      prometheus.Counter
-	qmgrRemoves      prometheus.Counter
-	qmgrInsertsNrcpt prometheus.Histogram
+	qmgrExpires            prometheus.Counter
+	qmgrRemoves            prometheus.Counter
+	qmgrInsertsNrcpt       prometheus.Histogram
+	qmgrInsertsNrcptLegacy prometheus.Histogram
 
 	logSrc logsource.LogSource
 
@@ -177,6 +178,7 @@ func (e *PostfixExporter) collectQmgrLog(line, remainder, level string) {
 	switch {
 	case qmgrInsertMatches != nil:
 		addToHistogram(e.qmgrInsertsSize, qmgrInsertMatches[1], "QMGR size")
+		addToHistogram(e.qmgrInsertsNrcptLegacy, qmgrInsertMatches[2], "QMGR nrcpt")
 		addToHistogram(e.qmgrInsertsNrcpt, qmgrInsertMatches[2], "QMGR nrcpt")
 	case strings.HasSuffix(remainder, ": removed"):
 		e.qmgrRemoves.Inc()
@@ -429,10 +431,18 @@ func (e *PostfixExporter) init() {
 				ConstLabels: constLabels,
 			},
 			[]string{"relay", "stage"})
-		e.qmgrInsertsNrcpt = prometheus.NewHistogram(prometheus.HistogramOpts{
+		// Metric name contains a typo, "receipients", metric is kept to ensure backwards compatibility
+		e.qmgrInsertsNrcptLegacy = prometheus.NewHistogram(prometheus.HistogramOpts{
 			Namespace:   "postfix",
 			Name:        "qmgr_messages_inserted_receipients",
-			Help:        "Number of receipients per message inserted into the mail queues.",
+			Help:        "Legacy metric, please switch to postfix_qmgr_messages_inserted_recipients.",
+			Buckets:     []float64{1, 2, 4, 8, 16, 32, 64, 128},
+			ConstLabels: constLabels,
+		})
+		e.qmgrInsertsNrcpt = prometheus.NewHistogram(prometheus.HistogramOpts{
+			Namespace:   "postfix",
+			Name:        "qmgr_messages_inserted_recipients",
+			Help:        "Number of recipients per message inserted into the mail queues.",
 			Buckets:     []float64{1, 2, 4, 8, 16, 32, 64, 128},
 			ConstLabels: constLabels,
 		})
@@ -649,6 +659,7 @@ func (e *PostfixExporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- e.cleanupNotAccepted.Desc()
 	e.lmtpDelays.Describe(ch)
 	e.pipeDelays.Describe(ch)
+	ch <- e.qmgrInsertsNrcptLegacy.Desc()
 	ch <- e.qmgrInsertsNrcpt.Desc()
 	ch <- e.qmgrInsertsSize.Desc()
 	ch <- e.qmgrRemoves.Desc()
@@ -718,6 +729,7 @@ func (e *PostfixExporter) Collect(ch chan<- prometheus.Metric) {
 	ch <- e.cleanupNotAccepted
 	e.lmtpDelays.Collect(ch)
 	e.pipeDelays.Collect(ch)
+	ch <- e.qmgrInsertsNrcptLegacy
 	ch <- e.qmgrInsertsNrcpt
 	ch <- e.qmgrInsertsSize
 	ch <- e.qmgrRemoves
