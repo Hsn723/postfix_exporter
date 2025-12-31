@@ -208,7 +208,7 @@ func main() {
 	slog.Info(versionString)
 
 	if err := setupMetricsServer(versionString); err != nil {
-		logFatal("Failed to create landing page", "error", err.Error)
+		logFatal("Failed to create landing page", "error", err.Error())
 	}
 
 	ctx, cancelFunc := context.WithCancel(ctx)
@@ -234,6 +234,6 @@ func main() {
 
 	server := &http.Server{}
 	if err := web.ListenAndServe(server, toolkitFlags, logger); err != nil {
-		logFatal("Error starting HTTP server", "error", err.Error)
+		logFatal("Error starting HTTP server", "error", err.Error())
 	}
 }
