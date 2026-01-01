@@ -15,6 +15,7 @@ var defaultConfig = tail.Config{
 	ReOpen:    true,                               // reopen the file if it's rotated
 	MustExist: true,                               // fail immediately if the file is missing or has incorrect permissions
 	Follow:    true,                               // run in follow mode
+	Poll:      false,                              // poll for file changes instead of using inotify
 	Location:  &tail.SeekInfo{Whence: io.SeekEnd}, // seek to end of file
 	Logger:    tail.DiscardingLogger,
 }
@@ -43,6 +44,7 @@ func (s *FileLogSource) Close() error {
 		}
 	}()
 	// Do not call .CleanUp() if the file should be tailed again
+	// see also https://pkg.go.dev/github.com/nxadm/tail@v1.4.11#Tail.Cleanup
 	return s.tailer.Stop()
 }
 
@@ -66,7 +68,7 @@ func (s *FileLogSource) Read(ctx context.Context) (string, error) {
 	}
 }
 
-// A fileLogSourceFactory is a factory than can create log sources
+// A fileLogSourceFactory is a factory that can create log sources
 // from command line flags.
 //
 // Because this factory is enabled by default, it must always be
@@ -76,6 +78,7 @@ type fileLogSourceFactory struct {
 	path      string
 	mustExist bool
 	debug     bool
+	poll      bool
 	source    *FileLogSource
 }
 
@@ -83,12 +86,14 @@ func (f *fileLogSourceFactory) Init(app *kingpin.Application) {
 	app.Flag("postfix.logfile_path", "Path where Postfix writes log entries.").Default("/var/log/mail.log").StringVar(&f.path)
 	app.Flag("postfix.logfile_must_exist", "Fail if the log file doesn't exist.").Default("true").BoolVar(&f.mustExist)
 	app.Flag("postfix.logfile_debug", "Enable debug logging for the log file.").Default("false").BoolVar(&f.debug)
+	app.Flag("postfix.logfile_poll", "Poll for file changes instead of using inotify.").Default("false").BoolVar(&f.poll)
 }
 
 // config returns a tail.Config configured from the factory's fields.
 func (f fileLogSourceFactory) config() tail.Config {
 	conf := defaultConfig
 	conf.MustExist = f.mustExist
+	conf.Poll = f.poll
 	if f.debug {
 		conf.Logger = tail.DefaultLogger
 	}
