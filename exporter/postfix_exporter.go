@@ -698,7 +698,7 @@ func (e *PostfixExporter) StartMetricCollection(ctx context.Context) {
 		line, err := e.logSrc.Read(ctx)
 		if err != nil {
 			if err != logsource.SystemdNoMoreEntries {
-				slog.Error("Couldn't read journal", "error", err.Error)
+				slog.Error("Couldn't read log source.", "source", e.logSrc.Path(), "error", err.Error())
 				return
 			}
 		}

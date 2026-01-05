@@ -31,6 +31,7 @@ These options can be used when starting the `postfix_exporter`
 | `--postfix.showq_network` | Network protocol to use to connect to showq         | `"unix"`                          |
 | `--postfix.logfile_path` | Path where Postfix writes log entries                | `/var/log/mail.log`               |
 | `--postfix.logfile_must_exist` | Fail if the log file doesn't exist.            | `true`                            |
+| `--postfix.logfile_poll` | Poll for file changes instead of using inotify.      | `false`                           |
 | `--postfix.logfile_debug` | Enable debug logging for the log file.              | `false`                           |
 | `--postfix.cleanup_service_label` | User-defined service labels for the cleanup service. | `cleanup`                |
 | `--postfix.lmtp_service_label`    | User-defined service labels for the lmtp service.    | `lmtp`                   |
