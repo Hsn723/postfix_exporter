@@ -9,9 +9,10 @@ require (
 	github.com/nxadm/tail v1.4.11
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
-	github.com/prometheus/common v0.67.4
-	github.com/prometheus/exporter-toolkit v0.15.0
+	github.com/prometheus/common v0.67.5
+	github.com/prometheus/exporter-toolkit v0.15.1
 	github.com/stretchr/testify v1.11.1
+	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7
 	k8s.io/api v0.35.0
 	k8s.io/apimachinery v0.35.0
 	k8s.io/client-go v0.35.0
@@ -92,7 +93,6 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
-	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gotest.tools/v3 v3.5.2 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
