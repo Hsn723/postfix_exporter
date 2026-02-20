@@ -17,6 +17,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/promslog"
+	"github.com/prometheus/common/promslog/flag"
 	"github.com/prometheus/exporter-toolkit/web"
 	"github.com/prometheus/exporter-toolkit/web/kingpinflag"
 )
@@ -39,8 +40,6 @@ var (
 	postfixShowqNetwork string
 	logUnsupportedLines bool
 
-	logLevel  string
-	logFormat string
 	logConfig *promslog.Config
 
 	cleanupLabels []string
@@ -161,6 +160,8 @@ func setupMetricsServer(versionString string) error {
 }
 
 func init() {
+	logConfig = &promslog.Config{}
+
 	app = kingpin.New("postfix_exporter", "Prometheus metrics exporter for postfix")
 	app.Flag("version", "Print version information").BoolVar(&versionFlag)
 	app.Flag("watchdog", "Use watchdog to monitor log sources.").Default("false").BoolVar(&useWatchdog)
@@ -170,8 +171,7 @@ func init() {
 	app.Flag("postfix.showq_port", "TCP port at which Postfix's showq service is listening.").Default("10025").IntVar(&postfixShowqPort)
 	app.Flag("postfix.showq_network", "Network type for Postfix's showq service").Default("unix").StringVar(&postfixShowqNetwork)
 	app.Flag("log.unsupported", "Log all unsupported lines.").BoolVar(&logUnsupportedLines)
-	app.Flag("log.level", "Log level: debug, info, warn, error").Default("info").StringVar(&logLevel)
-	app.Flag("log.format", "Log format: logfmt, json").Default("logfmt").StringVar(&logFormat)
+	flag.AddFlags(app, logConfig)
 
 	app.Flag("postfix.cleanup_service_label", "User-defined service labels for the cleanup service.").Default("cleanup").StringsVar(&cleanupLabels)
 	app.Flag("postfix.lmtp_service_label", "User-defined service labels for the lmtp service.").Default("lmtp").StringsVar(&lmtpLabels)
@@ -184,17 +184,6 @@ func init() {
 
 	logsource.InitLogSourceFactories(app)
 	kingpin.MustParse(app.Parse(os.Args[1:]))
-
-	logConfig = &promslog.Config{
-		Level:  promslog.NewLevel(),
-		Format: promslog.NewFormat(),
-	}
-	if err := logConfig.Level.Set(logLevel); err != nil {
-		logFatal("Invalid log level", "level", logLevel, "error", err.Error())
-	}
-	if err := logConfig.Format.Set(logFormat); err != nil {
-		logFatal("Invalid log format", "format", logFormat, "error", err.Error())
-	}
 }
 
 func main() {
