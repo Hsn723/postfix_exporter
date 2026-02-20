@@ -14,6 +14,12 @@ builds:
     goarch:
       - amd64
       - arm64
+    ldflags:
+      - -w -s
+        -X github.com/prometheus/common/version.Version={{ .Version }}
+        -X github.com/prometheus/common/version.Revision={{ .Commit }}
+        -X github.com/prometheus/common/version.Branch={{ .Branch }}
+        -X github.com/prometheus/common/version.BuildDate={{ .Date }}
   - id: with-docker
     goarch:
       - amd64
@@ -22,6 +28,12 @@ builds:
       - -tags=nosystemd
     env:
       - CGO_ENABLED=0
+    ldflags:
+      - -w -s
+        -X github.com/prometheus/common/version.Version={{ .Version }}
+        -X github.com/prometheus/common/version.Revision={{ .Commit }}
+        -X github.com/prometheus/common/version.Branch={{ .Branch }}
+        -X github.com/prometheus/common/version.BuildDate={{ .Date }}
   - id: with-systemd
     goarch:
       - amd64
@@ -34,6 +46,12 @@ builds:
         {{- if eq .Arch "arm64" }}CC=/usr/bin/aarch64-linux-gnu-gcc{{- end }}
     goos:
       - linux
+    ldflags:
+      - -w -s
+        -X github.com/prometheus/common/version.Version={{ .Version }}
+        -X github.com/prometheus/common/version.Revision={{ .Commit }}
+        -X github.com/prometheus/common/version.Branch={{ .Branch }}
+        -X github.com/prometheus/common/version.BuildDate={{ .Date }}
   - id: aio
     goos:
       - linux
@@ -44,6 +62,12 @@ builds:
       - CGO_ENABLED=1
       - >-
         {{- if eq .Arch "arm64" }}CC=/usr/bin/aarch64-linux-gnu-gcc{{- end }}
+    ldflags:
+      - -w -s
+        -X github.com/prometheus/common/version.Version={{ .Version }}
+        -X github.com/prometheus/common/version.Revision={{ .Commit }}
+        -X github.com/prometheus/common/version.Branch={{ .Branch }}
+        -X github.com/prometheus/common/version.BuildDate={{ .Date }}
 dockers:
   - image_templates:
     - "ghcr.io/hsn723/{{.ProjectName}}:{{ .Version }}-amd64"
