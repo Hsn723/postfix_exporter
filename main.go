@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
 	"log/slog"
 	"net/http"
 	"os"
@@ -16,22 +17,19 @@ import (
 	"github.com/hsn723/postfix_exporter/showq"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	versioncollector "github.com/prometheus/client_golang/prometheus/collectors/version"
+	"github.com/prometheus/common/version"
 	"github.com/prometheus/common/promslog"
+	"github.com/prometheus/common/promslog/flag"
 	"github.com/prometheus/exporter-toolkit/web"
 	"github.com/prometheus/exporter-toolkit/web/kingpinflag"
 )
 
 var (
-	version string
-	commit  string
-	date    string
-	builtBy string
-
 	//go:embed VERSION
 	fallbackVersion string
 
 	app                 *kingpin.Application
-	versionFlag         bool
 	toolkitFlags        *web.FlagConfig
 	metricsPath         string
 	postfixShowqPath    string
@@ -39,8 +37,6 @@ var (
 	postfixShowqNetwork string
 	logUnsupportedLines bool
 
-	logLevel  string
-	logFormat string
 	logConfig *promslog.Config
 
 	cleanupLabels []string
@@ -65,20 +61,6 @@ func getShowqAddress(path, remoteAddr, network string, port int) string {
 		logFatal("Unsupported network type", "network", network)
 		return ""
 	}
-}
-
-func buildVersionString() string {
-	versionString := "postfix_exporter " + version
-	if commit != "" {
-		versionString += " (" + commit + ")"
-	}
-	if date != "" {
-		versionString += " built on " + date
-	}
-	if builtBy != "" {
-		versionString += " by: " + builtBy
-	}
-	return versionString
 }
 
 func logFatal(msg string, args ...any) {
@@ -161,8 +143,14 @@ func setupMetricsServer(versionString string) error {
 }
 
 func init() {
+	if version.Version == "" {
+		version.Version = strings.TrimSpace(fallbackVersion)
+	}
+
+	logConfig = &promslog.Config{}
+
 	app = kingpin.New("postfix_exporter", "Prometheus metrics exporter for postfix")
-	app.Flag("version", "Print version information").BoolVar(&versionFlag)
+	app.Version(version.Print("postfix_exporter"))
 	app.Flag("watchdog", "Use watchdog to monitor log sources.").Default("false").BoolVar(&useWatchdog)
 	toolkitFlags = kingpinflag.AddFlags(app, ":9154")
 	app.Flag("web.telemetry-path", "Path under which to expose metrics.").Default("/metrics").StringVar(&metricsPath)
@@ -170,8 +158,7 @@ func init() {
 	app.Flag("postfix.showq_port", "TCP port at which Postfix's showq service is listening.").Default("10025").IntVar(&postfixShowqPort)
 	app.Flag("postfix.showq_network", "Network type for Postfix's showq service").Default("unix").StringVar(&postfixShowqNetwork)
 	app.Flag("log.unsupported", "Log all unsupported lines.").BoolVar(&logUnsupportedLines)
-	app.Flag("log.level", "Log level: debug, info, warn, error").Default("info").StringVar(&logLevel)
-	app.Flag("log.format", "Log format: logfmt, json").Default("logfmt").StringVar(&logFormat)
+	flag.AddFlags(app, logConfig)
 
 	app.Flag("postfix.cleanup_service_label", "User-defined service labels for the cleanup service.").Default("cleanup").StringsVar(&cleanupLabels)
 	app.Flag("postfix.lmtp_service_label", "User-defined service labels for the lmtp service.").Default("lmtp").StringsVar(&lmtpLabels)
@@ -182,19 +169,10 @@ func init() {
 	app.Flag("postfix.bounce_service_label", "User-defined service labels for the bounce service.").Default("bounce").StringsVar(&bounceLabels)
 	app.Flag("postfix.virtual_service_label", "User-defined service labels for the virtual service.").Default("virtual").StringsVar(&virtualLabels)
 
+	app.HelpFlag.Short('h')
+
 	logsource.InitLogSourceFactories(app)
 	kingpin.MustParse(app.Parse(os.Args[1:]))
-
-	logConfig = &promslog.Config{
-		Level:  promslog.NewLevel(),
-		Format: promslog.NewFormat(),
-	}
-	if err := logConfig.Level.Set(logLevel); err != nil {
-		logFatal("Invalid log level", "level", logLevel, "error", err.Error())
-	}
-	if err := logConfig.Format.Set(logFormat); err != nil {
-		logFatal("Invalid log format", "format", logFormat, "error", err.Error())
-	}
 }
 
 func main() {
@@ -202,18 +180,10 @@ func main() {
 	logger := promslog.New(logConfig)
 	slog.SetDefault(logger)
 
-	if version == "" {
-		version = fallbackVersion
-	}
+	logger.Info("Starting postfix_exporter", "version", version.Info())
+	logger.Info("Build context", "build_context", version.BuildContext())
 
-	if versionFlag {
-		os.Stdout.WriteString(version)
-		os.Exit(0)
-	}
-	versionString := buildVersionString()
-	slog.Info(versionString)
-
-	if err := setupMetricsServer(versionString); err != nil {
+	if err := setupMetricsServer(version.Info()); err != nil {
 		logFatal("Failed to create landing page", "error", err.Error())
 	}
 
@@ -240,6 +210,8 @@ func main() {
 			}
 		}()
 	}
+
+	prometheus.MustRegister(versioncollector.NewCollector("postfix_exporter"))
 
 	server := &http.Server{}
 	if err := web.ListenAndServe(server, toolkitFlags, logger); err != nil {
