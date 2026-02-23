@@ -58,7 +58,7 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: ${{ env.go-version }}
-      - uses: goreleaser/goreleaser-action@v6
+      - uses: goreleaser/goreleaser-action@v7
         with:
           version: latest
           args: check -f .goreleaser.yml
@@ -85,7 +85,7 @@ jobs:
           make libsystemd-dev
           make gcc-aarch64-linux-gnu
       - name: GoReleaser
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           version: latest
           args: --snapshot --skip=sign,publish --clean
