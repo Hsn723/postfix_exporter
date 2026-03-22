@@ -56,6 +56,7 @@ These options can be used when starting the `postfix_exporter`
 | `--kubernetes.service `       | Name of the service selecting the postfix pods  | `""`                              |
 | `--kubernetes.container`      | Container name to read logs from (default: all) | `""`                              |
 | `--kubernetes.kubeconfig`     | Path to kubeconfig file if out of cluster       | `"~/.kube/config"`                |
+| `--watchdog` | Use watchdog to monitor log sources and automatically reload | `false` |
 
 - The `--docker.*` flags are not available for binaries built with the `nodocker` build tag
 - The `--systemd.*` flags are not available for binaries built with the `nosystemd` build tag
