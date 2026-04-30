@@ -10,21 +10,13 @@ pull_request_rules:
   - name: Automatic merge for dependabot
     conditions:
       - author~=^dependabot\[bot\]$
+      - "#check-failure=0"
+      - "#check-pending=0"
       - or:
         - files~=^go\.(mod|sum)$
         - files~=^Dockerfile$
-        - files~=^\.github/workflows/.*\.ya?ml$
-      - -files~=^(?!go\.(mod|sum)$|Dockerfile$|\.github/workflows/.*\.ya?ml$).*
-    actions:
-      review:
-        type: APPROVE
-      merge:
-        method: squash
-  - name: Automatic merge for pre-commit
-    conditions:
-      - author~=^pre-commit-ci\[bot\]$
-      - title~=^\[pre-commit\.ci\] pre-commit autoupdate$
-      - files~=^\.pre-commit-config\.yaml$
+        - files~=^((\.github/workflows/.*)|(\.pre-commit-config))\.ya?ml$
+      - -files~=^(?!go\.(mod|sum)$|Dockerfile$|((\.github/workflows/.*)|(\.pre-commit-config))\.ya?ml$).*
     actions:
       review:
         type: APPROVE
