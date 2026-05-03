@@ -101,7 +101,7 @@ var (
 	lmtpPipeSMTPLine                    = regexp.MustCompile(`, relay=(\S+), .*, delays=([0-9\.]+)/([0-9\.]+)/([0-9\.]+)/([0-9\.]+), `)
 	qmgrInsertLine                      = regexp.MustCompile(`:.*, size=(\d+), nrcpt=(\d+) `)
 	qmgrExpiredLine                     = regexp.MustCompile(`:.*, status=(expired|force-expired), returned to sender`)
-	smtpStatusLine                      = regexp.MustCompile(`, status=(\w+) `)
+	statusLine                          = regexp.MustCompile(`, status=(\w+) `)
 	smtpDSNLine                         = regexp.MustCompile(`, dsn=(\d\.\d+\.\d+)`)
 	smtpTLSLine                         = regexp.MustCompile(`^(\S+) TLS connection established to \S+: (\S+) with cipher (\S+) \((\d+)/(\d+) bits\)`)
 	smtpConnectionTimedOut              = regexp.MustCompile(`^connect\s+to\s+(.*)\[(.*)\]:(\d+):\s+(Connection timed out)$`)
@@ -155,6 +155,10 @@ func (e *PostfixExporter) collectLMTPLog(line, remainder, level string) {
 		e.addToUnsupportedLine(line, "lmtp", level)
 		return
 	}
+	statusMatches := statusLine.FindStringSubmatch(remainder)
+	if statusMatches == nil || statusMatches[1] == "deferred" {
+		return
+	}
 	addToHistogramVec(e.lmtpDelays, lmtpMatches[2], "LMTP pdelay", "before_queue_manager")
 	addToHistogramVec(e.lmtpDelays, lmtpMatches[3], "LMTP adelay", "queue_manager")
 	addToHistogramVec(e.lmtpDelays, lmtpMatches[4], "LMTP sdelay", "connection_setup")
@@ -191,11 +195,7 @@ func (e *PostfixExporter) collectQmgrLog(line, remainder, level string) {
 
 func (e *PostfixExporter) collectSMTPLog(line, remainder, level string) {
 	if smtpMatches := lmtpPipeSMTPLine.FindStringSubmatch(remainder); smtpMatches != nil {
-		addToHistogramVec(e.smtpDelays, smtpMatches[2], "before_queue_manager", "")
-		addToHistogramVec(e.smtpDelays, smtpMatches[3], "queue_manager", "")
-		addToHistogramVec(e.smtpDelays, smtpMatches[4], "connection_setup", "")
-		addToHistogramVec(e.smtpDelays, smtpMatches[5], "transmission", "")
-		e.collectSMTPStatusLog(remainder)
+		e.collectSMTPStatusLog(remainder, smtpMatches)
 	} else if smtpTLSMatches := smtpTLSLine.FindStringSubmatch(remainder); smtpTLSMatches != nil {
 		e.smtpTLSConnects.WithLabelValues(smtpTLSMatches[1:]...).Inc()
 	} else if connectionTimedOutMatches := smtpConnectionTimedOut.FindStringSubmatch(remainder); connectionTimedOutMatches != nil {
@@ -205,8 +205,8 @@ func (e *PostfixExporter) collectSMTPLog(line, remainder, level string) {
 	}
 }
 
-func (e *PostfixExporter) collectSMTPStatusLog(remainder string) {
-	smtpStatusMatches := smtpStatusLine.FindStringSubmatch(remainder)
+func (e *PostfixExporter) collectSMTPStatusLog(remainder string, delays []string) {
+	smtpStatusMatches := statusLine.FindStringSubmatch(remainder)
 	if smtpStatusMatches == nil {
 		return
 	}
@@ -222,6 +222,12 @@ func (e *PostfixExporter) collectSMTPStatusLog(remainder string) {
 		if dsnMatches != nil {
 			e.smtpBouncedDSN.WithLabelValues(dsnMatches[1]).Inc()
 		}
+		fallthrough
+	default:
+		addToHistogramVec(e.smtpDelays, delays[2], "before_queue_manager", "")
+		addToHistogramVec(e.smtpDelays, delays[3], "queue_manager", "")
+		addToHistogramVec(e.smtpDelays, delays[4], "connection_setup", "")
+		addToHistogramVec(e.smtpDelays, delays[5], "transmission", "")
 	}
 }
 
