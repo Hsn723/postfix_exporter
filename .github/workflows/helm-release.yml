@@ -7,7 +7,13 @@ on:
       - 'charts/postfix-exporter/Chart.yaml'
 permissions:
   contents: write
+  packages: write
+  id-token: write
+  attestations: write
 jobs:
   release:
-    uses: hsn723/actions/.github/workflows/helm-release.yml@v1.0.11
+    uses: hsn723/actions/.github/workflows/helm-release.yml@v1.0.15
     secrets: inherit
+    with:
+      upload_as_oci: true
+      chart_name: postfix-exporter

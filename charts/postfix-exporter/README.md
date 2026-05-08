@@ -2,10 +2,9 @@
 
 ## Quick start
 
-### Add the Helm Repository
+### Pull the helm chart
 ```sh
-helm repo add postfix-exporter https://hsn723.github.io/postfix_exporter
-helm repo update
+helm pull oci://ghcr.io/hsn723/charts/postfix-exporter --version ${VERSION}
 ```
 
 ### Install the Chart
@@ -13,13 +12,13 @@ helm repo update
 Installing the chart with default settings (standalone):
 
 ```sh
-helm install --create-namespace --namespace postfix-exporter postfix-exporter postfix-exporter/postfix-exporter
+helm install --create-namespace --namespace postfix-exporter postfix-exporter oci://ghcr.io/hsn723/charts/postfix-exporter --version ${VERSION}
 ```
 
 Specify parameters using `--set key=value[,key=value]` arguments to `helm install`, or provide your own `values.yaml`:
 
 ```sh
-helm install --create-namespace --namespace postfix-exporter postfix-exporter -f values.yaml postfix-exporter/postfix-exporter
+helm install --create-namespace --namespace postfix-exporter postfix-exporter -f values.yaml oci://ghcr.io/hsn723/charts/postfix-exporter --version ${VERSION}
 ```
 
 ## Values
@@ -42,5 +41,5 @@ helm install --create-namespace --namespace postfix-exporter postfix-exporter -f
 
 ## Generate Manifests
 ```sh
-helm template --namespace postfix_exporter postfix_exporter [-f values.yaml] postfix_exporter/postfix_exporter
+helm template --namespace postfix_exporter postfix_exporter [-f values.yaml] oci://ghcr.io/hsn723/charts/postfix-exporter --version ${VERSION}
 ```
