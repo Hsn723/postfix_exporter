@@ -9,7 +9,7 @@ require (
 	github.com/nxadm/tail v1.4.11
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
-	github.com/prometheus/common v0.68.0
+	github.com/prometheus/common v0.68.1
 	github.com/prometheus/exporter-toolkit v0.16.0
 	github.com/stretchr/testify v1.11.1
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7
