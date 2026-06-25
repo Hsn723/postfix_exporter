@@ -18,3 +18,4 @@ jobs:
       additional-setup: |
         make libsystemd-dev
         make gcc-aarch64-linux-gnu
+      upload-image-sbom: false
