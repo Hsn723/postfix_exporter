@@ -4,7 +4,7 @@ before:
   hooks:
     - go mod download
 builds:
-  - id: default
+  - id: minimal
     env:
       - CGO_ENABLED=0
     flags:
@@ -21,6 +21,8 @@ builds:
         -X github.com/prometheus/common/version.Branch={{ .Branch }}
         -X github.com/prometheus/common/version.BuildDate={{ .Date }}
   - id: with-docker
+    goos:
+      - linux
     goarch:
       - amd64
       - arm64
@@ -68,47 +70,47 @@ builds:
         -X github.com/prometheus/common/version.Revision={{ .Commit }}
         -X github.com/prometheus/common/version.Branch={{ .Branch }}
         -X github.com/prometheus/common/version.BuildDate={{ .Date }}
-dockers:
-  - image_templates:
-    - "ghcr.io/hsn723/{{.ProjectName}}:{{ .Version }}-amd64"
-    use: buildx
+dockers_v2:
+  - id: minimal
     ids:
-      - default
-    dockerfile: Dockerfile
+      - minimal
+    images:
+      - "ghcr.io/hsn723/{{.ProjectName}}"
+    tags:
+      - "{{ .Version }}-minimal"
+      - "{{ .Major }}.{{ .Minor }}-minimal"
     extra_files:
       - LICENSE
-    build_flag_templates:
-      - "--platform=linux/amd64"
-      - "--label=org.opencontainers.image.created={{.Date}}"
-      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-      - "--label=org.opencontainers.image.version={{.Version}}"
-  - image_templates:
-    - "ghcr.io/hsn723/{{.ProjectName}}:{{ .Version }}-arm64"
-    use: buildx
+    annotations:
+      "org.opencontainers.image.created": "{{ .Date }}"
+      "org.opencontainers.image.revision": "{{ .FullCommit }}"
+      "org.opencontainers.image.version": "{{ .Version }}"
+      "org.opencontainers.image.base.name": "{{ .BaseImage }}"
+      "org.opencontainers.image.base.digest": "{{ .BaseImageDigest }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    sbom: true
+  - id: default
     ids:
-      - default
-    goarch: arm64
-    dockerfile: Dockerfile
+      - with-docker
+    images:
+      - "ghcr.io/hsn723/{{.ProjectName}}"
+    tags:
+      - "{{ .Version }}"
+      - "{{ .Major }}.{{ .Minor }}"
     extra_files:
       - LICENSE
-    build_flag_templates:
-      - "--platform=linux/arm64"
-      - "--label=org.opencontainers.image.created={{.Date}}"
-      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-      - "--label=org.opencontainers.image.version={{.Version}}"
-docker_manifests:
-  - name_template: "ghcr.io/hsn723/{{.ProjectName}}:latest"
-    image_templates:
-      - "ghcr.io/hsn723/{{.ProjectName}}:{{ .Version }}-amd64"
-      - "ghcr.io/hsn723/{{.ProjectName}}:{{ .Version }}-arm64"
-  - name_template: "ghcr.io/hsn723/{{.ProjectName}}:{{ .Version }}"
-    image_templates:
-      - "ghcr.io/hsn723/{{.ProjectName}}:{{ .Version }}-amd64"
-      - "ghcr.io/hsn723/{{.ProjectName}}:{{ .Version }}-arm64"
-  - name_template: "ghcr.io/hsn723/{{.ProjectName}}:{{ .Major }}.{{ .Minor }}"
-    image_templates:
-      - "ghcr.io/hsn723/{{.ProjectName}}:{{ .Version }}-amd64"
-      - "ghcr.io/hsn723/{{.ProjectName}}:{{ .Version }}-arm64"
+    annotations:
+      "org.opencontainers.image.created": "{{ .Date }}"
+      "org.opencontainers.image.revision": "{{ .FullCommit }}"
+      "org.opencontainers.image.version": "{{ .Version }}"
+      "org.opencontainers.image.base.name": "{{ .BaseImage }}"
+      "org.opencontainers.image.base.digest": "{{ .BaseImageDigest }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    sbom: true
 archives:
   - id: default
     ids:
