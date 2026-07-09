@@ -12,7 +12,7 @@ permissions:
   attestations: write
 jobs:
   release:
-    uses: hsn723/actions/.github/workflows/release.yml@0006fb81cac65f798c4fdb6a3676e329d84272c1 # v1.0.21
+    uses: hsn723/actions/.github/workflows/release.yml@fcbed66c34a5b37e10ae00bac91ef63c034c22e4 # v1.0.22
     secrets: inherit
     with:
       additional-setup: |
