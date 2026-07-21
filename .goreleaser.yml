@@ -138,8 +138,12 @@ source:
 sboms:
   - id: archive
     artifacts: archive
+    env:
+      - AQUA_GLOBAL_CONFIG={{ .Env.AQUA_GLOBAL_CONFIG }}
   - id: source
     artifacts: source
+    env:
+      - AQUA_GLOBAL_CONFIG={{ .Env.AQUA_GLOBAL_CONFIG }}
 signs:
   - cmd: cosign
     signature: '${artifact}.sigstore.json'
