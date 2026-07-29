@@ -99,7 +99,7 @@ default container ID is `postfix`, but can be customized with the
 
 The default is to connect to the local Docker, but this can be
 customized using [the `DOCKER_HOST` and
-similar](https://pkg.go.dev/github.com/docker/docker/client?tab=doc#NewEnvClient)
+similar](https://pkg.go.dev/github.com/moby/moby/client?tab=doc#New)
 environment variables.
 
 ## Events from log file

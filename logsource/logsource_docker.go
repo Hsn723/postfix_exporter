@@ -11,8 +11,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/client"
 )
 
 // A DockerLogSource reads log records from the given Docker
@@ -25,15 +24,15 @@ type DockerLogSource struct {
 }
 
 // A DockerClient is the client interface that client.Client
-// provides. See https://pkg.go.dev/github.com/docker/docker/client
+// provides. See https://pkg.go.dev/github.com/moby/moby/client
 type DockerClient interface {
 	io.Closer
-	ContainerLogs(context.Context, string, container.LogsOptions) (io.ReadCloser, error)
+	ContainerLogs(context.Context, string, client.ContainerLogsOptions) (client.ContainerLogsResult, error)
 }
 
 // NewDockerLogSource returns a log source for reading Docker logs.
 func NewDockerLogSource(ctx context.Context, c DockerClient, containerID string) (*DockerLogSource, error) {
-	r, err := c.ContainerLogs(ctx, containerID, container.LogsOptions{
+	r, err := c.ContainerLogs(ctx, containerID, client.ContainerLogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
 		Follow:     true,
@@ -77,7 +76,7 @@ type dockerLogSourceFactory struct {
 }
 
 func (f *dockerLogSourceFactory) Init(app *kingpin.Application) {
-	app.Flag("docker.enable", "Read from Docker logs. Environment variable DOCKER_HOST can be used to change the address. See https://pkg.go.dev/github.com/docker/docker/client?tab=doc#NewEnvClient for more information.").Default("false").BoolVar(&f.enable)
+	app.Flag("docker.enable", "Read from Docker logs. Environment variable DOCKER_HOST can be used to change the address. See https://pkg.go.dev/github.com/moby/moby/client?tab=doc#New for more information.").Default("false").BoolVar(&f.enable)
 	app.Flag("docker.container.id", "ID/name of the Postfix Docker container.").Default("postfix").StringVar(&f.containerID)
 }
 
@@ -87,7 +86,7 @@ func (f *dockerLogSourceFactory) New(ctx context.Context) ([]LogSourceCloser, er
 	}
 
 	slog.Info("Reading log events from Docker")
-	c, err := client.NewClientWithOpts(client.FromEnv)
+	c, err := client.New(client.FromEnv)
 	if err != nil {
 		return nil, err
 	}
