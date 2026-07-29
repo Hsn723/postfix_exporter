@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/docker/docker/api/types/container"
+	"github.com/moby/moby/client"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -68,7 +68,7 @@ type fakeDockerClient struct {
 	closeCalls         int
 }
 
-func (c *fakeDockerClient) ContainerLogs(ctx context.Context, containerID string, opts container.LogsOptions) (io.ReadCloser, error) {
+func (c *fakeDockerClient) ContainerLogs(ctx context.Context, containerID string, opts client.ContainerLogsOptions) (client.ContainerLogsResult, error) {
 	c.containerLogsCalls = append(c.containerLogsCalls, containerID)
 	return c.logsReader, nil
 }
