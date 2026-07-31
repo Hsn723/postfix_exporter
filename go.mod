@@ -28,7 +28,7 @@ require (
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/distribution/reference v0.6.0 // indirect
-	github.com/docker/go-connections v0.8.0 // indirect
+	github.com/docker/go-connections v0.8.1 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.13.0 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
@@ -38,18 +38,18 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v1.0.0 // indirect
 	github.com/go-openapi/jsonreference v1.0.0 // indirect
-	github.com/go-openapi/swag v0.27.3 // indirect
-	github.com/go-openapi/swag/cmdutils v0.27.3 // indirect
-	github.com/go-openapi/swag/conv v0.27.3 // indirect
-	github.com/go-openapi/swag/fileutils v0.27.3 // indirect
-	github.com/go-openapi/swag/jsonutils v0.27.3 // indirect
-	github.com/go-openapi/swag/loading v0.27.3 // indirect
-	github.com/go-openapi/swag/mangling v0.27.3 // indirect
-	github.com/go-openapi/swag/netutils v0.27.3 // indirect
-	github.com/go-openapi/swag/pools v0.27.3 // indirect
-	github.com/go-openapi/swag/stringutils v0.27.3 // indirect
-	github.com/go-openapi/swag/typeutils v0.27.3 // indirect
-	github.com/go-openapi/swag/yamlutils v0.27.3 // indirect
+	github.com/go-openapi/swag v0.28.0 // indirect
+	github.com/go-openapi/swag/cmdutils v0.28.0 // indirect
+	github.com/go-openapi/swag/conv v0.28.0 // indirect
+	github.com/go-openapi/swag/fileutils v0.28.0 // indirect
+	github.com/go-openapi/swag/jsonutils v0.28.0 // indirect
+	github.com/go-openapi/swag/loading v0.28.0 // indirect
+	github.com/go-openapi/swag/mangling v0.28.0 // indirect
+	github.com/go-openapi/swag/netutils v0.28.0 // indirect
+	github.com/go-openapi/swag/pools v0.28.0 // indirect
+	github.com/go-openapi/swag/stringutils v0.28.0 // indirect
+	github.com/go-openapi/swag/typeutils v0.28.0 // indirect
+	github.com/go-openapi/swag/yamlutils v0.28.0 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/gnostic-models v0.7.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
