@@ -9,8 +9,10 @@ on:
     branches:
       - master
 permissions:
+  actions: read
   contents: read
   pull-requests: write
+  security-events: write
 jobs:
   verify:
     uses: hsn723/actions/.github/workflows/verify.yml@a48f27c3e6fa5b0a099473cd4ff0aa71dafb6569 # v1.0.40
