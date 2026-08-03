@@ -13,7 +13,7 @@ permissions:
   pull-requests: write
 jobs:
   verify:
-    uses: hsn723/actions/.github/workflows/verify.yml@c503c7b5fb7b07887fdc678505e69e37cff1b3f8 # v1.0.35
+    uses: hsn723/actions/.github/workflows/verify.yml@a48f27c3e6fa5b0a099473cd4ff0aa71dafb6569 # v1.0.40
     secrets: inherit
     with:
       lint-pre: |
