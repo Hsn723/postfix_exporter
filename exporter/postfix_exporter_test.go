@@ -34,6 +34,7 @@ type args struct {
 	postscreenPasses       int
 	postscreenRejects      int
 	postscreenTests        int
+	postscreenAccessList   int
 }
 
 type testCase struct {
@@ -63,6 +64,7 @@ func testPostfixExporter_CollectFromLogline(t *testing.T, tt testCase) {
 	assertCounterEquals(t, e.postscreenPasses, tt.args.postscreenPasses, "Wrong number of postscreen passes")
 	assertCounterEquals(t, e.postscreenRejects, tt.args.postscreenRejects, "Wrong number of postscreen rejects")
 	assertCounterEquals(t, e.postscreenTests, tt.args.postscreenTests, "Wrong number of postscreen test failures")
+	assertCounterEquals(t, e.postscreenAccessList, tt.args.postscreenAccessList, "Wrong number of postscreen access list events")
 	assertCounterVecMetricsEquals(t, e.unsupportedLogEntries, tt.args.unsupportedLogEntries, "Wrong number of unsupportedLogEntries")
 }
 
@@ -220,6 +222,18 @@ func TestPostfixExporter_CollectFromLogline(t *testing.T) {
 				postscreenPasses:   2,
 				postscreenRejects:  1,
 				postscreenTests:    2,
+			},
+		},
+		{
+			name: "Testing postscreen allow/deny list",
+			args: args{
+				line: []string{
+					"Feb 24 16:18:40 letterman postfix/postscreen[3508454]: ALLOWLISTED [69.171.232.146]:61236",
+					"Feb 24 16:18:40 letterman postfix/postscreen[3508454]: WHITELISTED [69.171.232.147]:61236",
+					"Feb 24 16:18:40 letterman postfix/postscreen[3508454]: DENYLISTED [1.2.3.4]:5678",
+					"Feb 24 16:18:40 letterman postfix/postscreen[3508454]: BLACKLISTED [1.2.3.5]:5678",
+				},
+				postscreenAccessList: 4,
 			},
 		},
 		{

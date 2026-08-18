@@ -78,11 +78,12 @@ type PostfixExporter struct {
 
 	showq *showq.Showq
 
-	postscreenConnects  prometheus.Counter
-	postscreenPasses    *prometheus.CounterVec
-	postscreenDNSBLRank prometheus.Histogram
-	postscreenRejects   *prometheus.CounterVec
-	postscreenTests     *prometheus.CounterVec
+	postscreenConnects   prometheus.Counter
+	postscreenPasses     *prometheus.CounterVec
+	postscreenDNSBLRank  prometheus.Histogram
+	postscreenRejects    *prometheus.CounterVec
+	postscreenTests      *prometheus.CounterVec
+	postscreenAccessList *prometheus.CounterVec
 
 	bounceLabels     []string
 	cleanupLabels    []string
@@ -124,6 +125,7 @@ var (
 	postscreenDNSBLLine                 = regexp.MustCompile(`^DNSBL rank (\d+) for `)
 	postscreenRejectLine                = regexp.MustCompile(`^NOQUEUE: reject: RCPT from \S+: ([0-9]+) `)
 	postscreenTestLine                  = regexp.MustCompile(`^(PREGREET|NON-SMTP COMMAND|COMMAND PIPELINING|COMMAND TIME LIMIT|COMMAND COUNT LIMIT|COMMAND LENGTH LIMIT|BARE NEWLINE|HANGUP) `)
+	postscreenAccessListLine            = regexp.MustCompile(`^(ALLOWLISTED|WHITELISTED|DENYLISTED|BLACKLISTED) `)
 )
 
 func (e *PostfixExporter) collectFromPostfixLogLine(line, subprocess, level, remainder string) {
@@ -297,6 +299,12 @@ func (e *PostfixExporter) collectPostscreenLog(line, remainder, level string) {
 	} else if testMatches := postscreenTestLine.FindStringSubmatch(remainder); testMatches != nil {
 		test := strings.ReplaceAll(strings.ReplaceAll(testMatches[1], "-", "_"), " ", "_")
 		e.postscreenTests.WithLabelValues(test).Inc()
+	} else if accessListMatches := postscreenAccessListLine.FindStringSubmatch(remainder); accessListMatches != nil {
+		action := "allow"
+		if accessListMatches[1] == "DENYLISTED" || accessListMatches[1] == "BLACKLISTED" {
+			action = "deny"
+		}
+		e.postscreenAccessList.WithLabelValues(action).Inc()
 	} else {
 		e.addToUnsupportedLine(line, "postscreen", level)
 	}
@@ -690,6 +698,14 @@ func (e *PostfixExporter) init() {
 				ConstLabels: constLabels,
 			},
 			[]string{"test"})
+		e.postscreenAccessList = prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace:   "postfix",
+				Name:        "postscreen_access_list_total",
+				Help:        "Total number of clients allow/deny-listed by postscreen (ALLOWLISTED/WHITELISTED/DENYLISTED/BLACKLISTED).",
+				ConstLabels: constLabels,
+			},
+			[]string{"action"})
 		e.postfixUp = prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Namespace:   "postfix",
@@ -771,6 +787,7 @@ func (e *PostfixExporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- e.postscreenDNSBLRank.Desc()
 	e.postscreenRejects.Describe(ch)
 	e.postscreenTests.Describe(ch)
+	e.postscreenAccessList.Describe(ch)
 }
 
 func (e *PostfixExporter) StartMetricCollection(ctx context.Context) {
@@ -846,4 +863,5 @@ func (e *PostfixExporter) Collect(ch chan<- prometheus.Metric) {
 	ch <- e.postscreenDNSBLRank
 	e.postscreenRejects.Collect(ch)
 	e.postscreenTests.Collect(ch)
+	e.postscreenAccessList.Collect(ch)
 }
