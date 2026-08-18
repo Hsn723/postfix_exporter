@@ -30,6 +30,10 @@ type args struct {
 	smtpBounced            int
 	bounceNonDelivery      int
 	virtualDelivered       int
+	postscreenConnects     int
+	postscreenPasses       int
+	postscreenRejects      int
+	postscreenTests        int
 }
 
 type testCase struct {
@@ -55,6 +59,10 @@ func testPostfixExporter_CollectFromLogline(t *testing.T, tt testCase) {
 	assertCounterEquals(t, e.smtpBouncedDSN, tt.args.smtpBounced, "Wrong number of smtp bounced")
 	assertCounterEquals(t, e.bounceNonDelivery, tt.args.bounceNonDelivery, "Wrong number of non delivery notifications")
 	assertCounterEquals(t, e.virtualDelivered, tt.args.virtualDelivered, "Wrong number of delivered mails")
+	assertCounterEquals(t, e.postscreenConnects, tt.args.postscreenConnects, "Wrong number of postscreen connects")
+	assertCounterEquals(t, e.postscreenPasses, tt.args.postscreenPasses, "Wrong number of postscreen passes")
+	assertCounterEquals(t, e.postscreenRejects, tt.args.postscreenRejects, "Wrong number of postscreen rejects")
+	assertCounterEquals(t, e.postscreenTests, tt.args.postscreenTests, "Wrong number of postscreen test failures")
 	assertCounterVecMetricsEquals(t, e.unsupportedLogEntries, tt.args.unsupportedLogEntries, "Wrong number of unsupportedLogEntries")
 }
 
@@ -194,6 +202,24 @@ func TestPostfixExporter_CollectFromLogline(t *testing.T) {
 					"Apr  7 15:35:20 123-mail postfix/virtual[20235]: 199041033BE: to=<me@domain.fr>, relay=virtual, delay=0.08, delays=0.08/0/0/0, dsn=2.0.0, status=sent (delivered to maildir)",
 				},
 				virtualDelivered: 1,
+			},
+		},
+		{
+			name: "Testing postscreen stats",
+			args: args{
+				line: []string{
+					"Feb 24 16:18:40 letterman postfix/postscreen[1234]: CONNECT from [1.2.3.4]:5678 to [5.6.7.8]:25",
+					"Feb 24 16:18:40 letterman postfix/postscreen[1234]: PASS NEW [1.2.3.4]:5678",
+					"Feb 24 16:18:40 letterman postfix/postscreen[1234]: PASS OLD [9.8.7.6]:1234",
+					"Feb 24 16:18:40 letterman postfix/postscreen[1234]: DNSBL rank 3 for [1.2.3.4]:5678",
+					"Feb 24 16:18:40 letterman postfix/postscreen[1234]: PREGREET 14 after 0.18 from [1.2.3.4]:5678: EHLO [74.207.242.122]",
+					"Feb 24 16:18:40 letterman postfix/postscreen[1234]: HANGUP after 2.5 from [1.2.3.4]:5678 in tests after SMTP handshake",
+					"Feb 24 16:18:40 letterman postfix/postscreen[1234]: NOQUEUE: reject: RCPT from [1.2.3.4]:5678: 550 5.7.1 Service unavailable; client [1.2.3.4] blocked using zen.spamhaus.org; from=<a@b.com> to=<c@d.com> proto=ESMTP helo=<x>",
+				},
+				postscreenConnects: 1,
+				postscreenPasses:   2,
+				postscreenRejects:  1,
+				postscreenTests:    2,
 			},
 		},
 		{

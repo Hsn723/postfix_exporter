@@ -41,6 +41,7 @@ These options can be used when starting the `postfix_exporter`
 | `--postfix.smtpd_service_label`   | User-defined service labels for the smtpd service.   | `smtpd`                  |
 | `--postfix.bounce_service_label`  | User-defined service labels for the bounce service.  | `bounce`                 |
 | `--postfix.virtual_service_label` | User-defined service labels for the virtual service. | `virtual`                |
+| `--postfix.postscreen_service_label` | User-defined service labels for the postscreen service. | `postscreen`         |
 | `--log.unsupported`      | Log all unsupported lines                            | `false`                           |
 | `--log.level`            | Logging level                                        | `"info"`                          |
 | `--log.format`           | Logging format                                       | `"logfmt"`                        |

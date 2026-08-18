@@ -78,14 +78,21 @@ type PostfixExporter struct {
 
 	showq *showq.Showq
 
-	bounceLabels  []string
-	cleanupLabels []string
-	smtpLabels    []string
-	smtpdLabels   []string
-	virtualLabels []string
-	qmgrLabels    []string
-	pipeLabels    []string
-	lmtpLabels    []string
+	postscreenConnects  prometheus.Counter
+	postscreenPasses    *prometheus.CounterVec
+	postscreenDNSBLRank prometheus.Histogram
+	postscreenRejects   *prometheus.CounterVec
+	postscreenTests     *prometheus.CounterVec
+
+	bounceLabels     []string
+	cleanupLabels    []string
+	smtpLabels       []string
+	smtpdLabels      []string
+	virtualLabels    []string
+	qmgrLabels       []string
+	pipeLabels       []string
+	lmtpLabels       []string
+	postscreenLabels []string
 
 	once sync.Once
 
@@ -113,6 +120,10 @@ var (
 	smtpdTLSLine                        = regexp.MustCompile(`^(\S+) TLS connection established from \S+: (\S+) with cipher (\S+) \((\d+)/(\d+) bits\)`)
 	opendkimSignatureAdded              = regexp.MustCompile(`^[\w\d]+: DKIM-Signature field added \(s=(\w+), d=(.*)\)$`)
 	bounceNonDeliveryLine               = regexp.MustCompile(`: sender non-delivery notification: `)
+	postscreenPassLine                  = regexp.MustCompile(`^PASS (NEW|OLD) `)
+	postscreenDNSBLLine                 = regexp.MustCompile(`^DNSBL rank (\d+) for `)
+	postscreenRejectLine                = regexp.MustCompile(`^NOQUEUE: reject: RCPT from \S+: ([0-9]+) `)
+	postscreenTestLine                  = regexp.MustCompile(`^(PREGREET|NON-SMTP COMMAND|COMMAND PIPELINING|COMMAND TIME LIMIT|COMMAND COUNT LIMIT|COMMAND LENGTH LIMIT|BARE NEWLINE|HANGUP) `)
 )
 
 func (e *PostfixExporter) collectFromPostfixLogLine(line, subprocess, level, remainder string) {
@@ -133,6 +144,8 @@ func (e *PostfixExporter) collectFromPostfixLogLine(line, subprocess, level, rem
 		e.collectBounceLog(line, remainder, level)
 	case slices.Contains(e.virtualLabels, subprocess):
 		e.collectVirtualLog(line, remainder, level)
+	case slices.Contains(e.postscreenLabels, subprocess):
+		e.collectPostscreenLog(line, remainder, level)
 	default:
 		e.addToUnsupportedLine(line, subprocess, level)
 	}
@@ -272,6 +285,23 @@ func (e *PostfixExporter) collectVirtualLog(line, remainder, level string) {
 	}
 }
 
+func (e *PostfixExporter) collectPostscreenLog(line, remainder, level string) {
+	if strings.HasPrefix(remainder, "CONNECT from ") {
+		e.postscreenConnects.Inc()
+	} else if passMatches := postscreenPassLine.FindStringSubmatch(remainder); passMatches != nil {
+		e.postscreenPasses.WithLabelValues(strings.ToLower(passMatches[1])).Inc()
+	} else if dnsblMatches := postscreenDNSBLLine.FindStringSubmatch(remainder); dnsblMatches != nil {
+		addToHistogram(e.postscreenDNSBLRank, dnsblMatches[1], "postscreen DNSBL rank")
+	} else if rejectMatches := postscreenRejectLine.FindStringSubmatch(remainder); rejectMatches != nil {
+		e.postscreenRejects.WithLabelValues(rejectMatches[1]).Inc()
+	} else if testMatches := postscreenTestLine.FindStringSubmatch(remainder); testMatches != nil {
+		test := strings.ReplaceAll(strings.ReplaceAll(testMatches[1], "-", "_"), " ", "_")
+		e.postscreenTests.WithLabelValues(test).Inc()
+	} else {
+		e.addToUnsupportedLine(line, "postscreen", level)
+	}
+}
+
 // CollectFromLogline collects metrict from a Postfix log line.
 func (e *PostfixExporter) CollectFromLogLine(line string) {
 	if line == "" {
@@ -327,14 +357,15 @@ func addToHistogramVec(h *prometheus.HistogramVec, value, fieldName string, labe
 }
 
 var (
-	defaultCleanupLabels = []string{"cleanup"}
-	defaultLmtpLabels    = []string{"lmtp"}
-	defaultPipeLabels    = []string{"pipe"}
-	defaultQmgrLabels    = []string{"qmgr"}
-	defaultSmtpLabels    = []string{"smtp"}
-	defaultSmtpdLabels   = []string{"smtpd"}
-	defaultBounceLabels  = []string{"bounce"}
-	defaultVirtualLabels = []string{"virtual"}
+	defaultCleanupLabels    = []string{"cleanup"}
+	defaultLmtpLabels       = []string{"lmtp"}
+	defaultPipeLabels       = []string{"pipe"}
+	defaultQmgrLabels       = []string{"qmgr"}
+	defaultSmtpLabels       = []string{"smtp"}
+	defaultSmtpdLabels      = []string{"smtpd"}
+	defaultBounceLabels     = []string{"bounce"}
+	defaultVirtualLabels    = []string{"virtual"}
+	defaultPostscreenLabels = []string{"postscreen"}
 )
 
 // WithCleanupLabels is a function to apply user-defined service labels to PostfixExporter.
@@ -390,6 +421,13 @@ func WithBounceLabels(labels []string) ServiceLabel {
 func WithVirtualLabels(labels []string) ServiceLabel {
 	return func(e *PostfixExporter) {
 		e.virtualLabels = labels
+	}
+}
+
+// WithPostscreenLabels is a function to apply user-defined service labels to PostfixExporter.
+func WithPostscreenLabels(labels []string) ServiceLabel {
+	return func(e *PostfixExporter) {
+		e.postscreenLabels = labels
 	}
 }
 
@@ -615,6 +653,43 @@ func (e *PostfixExporter) init() {
 			Help:        "Total number of mail delivered to a virtual mailbox.",
 			ConstLabels: constLabels,
 		})
+		e.postscreenConnects = prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace:   "postfix",
+			Name:        "postscreen_connects_total",
+			Help:        "Total number of connections handled by postscreen.",
+			ConstLabels: constLabels,
+		})
+		e.postscreenPasses = prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace:   "postfix",
+				Name:        "postscreen_passes_total",
+				Help:        "Total number of clients passed by postscreen, by allowlist status (new/old).",
+				ConstLabels: constLabels,
+			},
+			[]string{"type"})
+		e.postscreenDNSBLRank = prometheus.NewHistogram(prometheus.HistogramOpts{
+			Namespace:   "postfix",
+			Name:        "postscreen_dnsbl_rank",
+			Help:        "DNSBL rank assigned to clients by postscreen.",
+			Buckets:     []float64{0, 1, 2, 3, 4, 5, 6, 8, 10, 12, 15},
+			ConstLabels: constLabels,
+		})
+		e.postscreenRejects = prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace:   "postfix",
+				Name:        "postscreen_messages_rejected_total",
+				Help:        "Total number of NOQUEUE rejects issued by postscreen, by response code.",
+				ConstLabels: constLabels,
+			},
+			[]string{"code"})
+		e.postscreenTests = prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace:   "postfix",
+				Name:        "postscreen_tests_failed_total",
+				Help:        "Total number of postscreen pre-greet/protocol test failures, by test name.",
+				ConstLabels: constLabels,
+			},
+			[]string{"test"})
 		e.postfixUp = prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Namespace:   "postfix",
@@ -639,6 +714,7 @@ func NewPostfixExporter(s *showq.Showq, logSrc logsource.LogSource, logUnsupport
 		smtpdLabels:         defaultSmtpdLabels,
 		bounceLabels:        defaultBounceLabels,
 		virtualLabels:       defaultVirtualLabels,
+		postscreenLabels:    defaultPostscreenLabels,
 		logUnsupportedLines: logUnsupportedLines,
 		showq:               s,
 		logSrc:              logSrc,
@@ -690,6 +766,11 @@ func (e *PostfixExporter) Describe(ch chan<- *prometheus.Desc) {
 	e.opendkimSignatureAdded.Describe(ch)
 	ch <- e.bounceNonDelivery.Desc()
 	ch <- e.virtualDelivered.Desc()
+	ch <- e.postscreenConnects.Desc()
+	e.postscreenPasses.Describe(ch)
+	ch <- e.postscreenDNSBLRank.Desc()
+	e.postscreenRejects.Describe(ch)
+	e.postscreenTests.Describe(ch)
 }
 
 func (e *PostfixExporter) StartMetricCollection(ctx context.Context) {
@@ -760,4 +841,9 @@ func (e *PostfixExporter) Collect(ch chan<- prometheus.Metric) {
 	e.opendkimSignatureAdded.Collect(ch)
 	ch <- e.bounceNonDelivery
 	ch <- e.virtualDelivered
+	ch <- e.postscreenConnects
+	e.postscreenPasses.Collect(ch)
+	ch <- e.postscreenDNSBLRank
+	e.postscreenRejects.Collect(ch)
+	e.postscreenTests.Collect(ch)
 }

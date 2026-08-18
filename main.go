@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
-	"strings"
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	_ "embed"
@@ -16,11 +16,11 @@ import (
 	"github.com/hsn723/postfix_exporter/logsource"
 	"github.com/hsn723/postfix_exporter/showq"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	versioncollector "github.com/prometheus/client_golang/prometheus/collectors/version"
-	"github.com/prometheus/common/version"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/promslog"
 	"github.com/prometheus/common/promslog/flag"
+	"github.com/prometheus/common/version"
 	"github.com/prometheus/exporter-toolkit/web"
 	"github.com/prometheus/exporter-toolkit/web/kingpinflag"
 )
@@ -39,14 +39,15 @@ var (
 
 	logConfig *promslog.Config
 
-	cleanupLabels []string
-	lmtpLabels    []string
-	pipeLabels    []string
-	qmgrLabels    []string
-	smtpLabels    []string
-	smtpdLabels   []string
-	bounceLabels  []string
-	virtualLabels []string
+	cleanupLabels    []string
+	lmtpLabels       []string
+	pipeLabels       []string
+	qmgrLabels       []string
+	smtpLabels       []string
+	smtpdLabels      []string
+	bounceLabels     []string
+	virtualLabels    []string
+	postscreenLabels []string
 
 	useWatchdog bool
 )
@@ -86,6 +87,7 @@ func initializeExporters(logSrcs []logsource.LogSourceCloser) []*exporter.Postfi
 			exporter.WithSmtpdLabels(smtpdLabels),
 			exporter.WithBounceLabels(bounceLabels),
 			exporter.WithVirtualLabels(virtualLabels),
+			exporter.WithPostscreenLabels(postscreenLabels),
 		)
 		prometheus.MustRegister(exporter)
 		exporters = append(exporters, exporter)
@@ -168,6 +170,7 @@ func init() {
 	app.Flag("postfix.smtpd_service_label", "User-defined service labels for the smtpd service.").Default("smtpd").StringsVar(&smtpdLabels)
 	app.Flag("postfix.bounce_service_label", "User-defined service labels for the bounce service.").Default("bounce").StringsVar(&bounceLabels)
 	app.Flag("postfix.virtual_service_label", "User-defined service labels for the virtual service.").Default("virtual").StringsVar(&virtualLabels)
+	app.Flag("postfix.postscreen_service_label", "User-defined service labels for the postscreen service.").Default("postscreen").StringsVar(&postscreenLabels)
 
 	app.HelpFlag.Short('h')
 
