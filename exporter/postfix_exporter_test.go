@@ -34,6 +34,7 @@ type args struct {
 	postscreenPasses       int
 	postscreenRejects      int
 	postscreenTests        int
+	postscreenHangups      int
 	postscreenAccessList   int
 }
 
@@ -64,6 +65,7 @@ func testPostfixExporter_CollectFromLogline(t *testing.T, tt testCase) {
 	assertCounterEquals(t, e.postscreenPasses, tt.args.postscreenPasses, "Wrong number of postscreen passes")
 	assertCounterEquals(t, e.postscreenRejects, tt.args.postscreenRejects, "Wrong number of postscreen rejects")
 	assertCounterEquals(t, e.postscreenTests, tt.args.postscreenTests, "Wrong number of postscreen test failures")
+	assertCounterEquals(t, e.postscreenHangups, tt.args.postscreenHangups, "Wrong number of postscreen hangups")
 	assertCounterEquals(t, e.postscreenAccessList, tt.args.postscreenAccessList, "Wrong number of postscreen access list events")
 	assertCounterVecMetricsEquals(t, e.unsupportedLogEntries, tt.args.unsupportedLogEntries, "Wrong number of unsupportedLogEntries")
 }
@@ -221,7 +223,8 @@ func TestPostfixExporter_CollectFromLogline(t *testing.T) {
 				postscreenConnects: 1,
 				postscreenPasses:   2,
 				postscreenRejects:  1,
-				postscreenTests:    2,
+				postscreenTests:    1,
+				postscreenHangups:  1,
 			},
 		},
 		{

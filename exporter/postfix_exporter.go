@@ -83,6 +83,7 @@ type PostfixExporter struct {
 	postscreenDNSBLRank  prometheus.Histogram
 	postscreenRejects    *prometheus.CounterVec
 	postscreenTests      *prometheus.CounterVec
+	postscreenHangups    prometheus.Counter
 	postscreenAccessList *prometheus.CounterVec
 
 	bounceLabels     []string
@@ -124,7 +125,8 @@ var (
 	postscreenPassLine                  = regexp.MustCompile(`^PASS (NEW|OLD) `)
 	postscreenDNSBLLine                 = regexp.MustCompile(`^DNSBL rank (\d+) for `)
 	postscreenRejectLine                = regexp.MustCompile(`^NOQUEUE: reject: RCPT from \S+: ([0-9]+) `)
-	postscreenTestLine                  = regexp.MustCompile(`^(PREGREET|NON-SMTP COMMAND|COMMAND PIPELINING|COMMAND TIME LIMIT|COMMAND COUNT LIMIT|COMMAND LENGTH LIMIT|BARE NEWLINE|HANGUP) `)
+	postscreenTestLine                  = regexp.MustCompile(`^(PREGREET|NON-SMTP COMMAND|COMMAND PIPELINING|COMMAND TIME LIMIT|COMMAND COUNT LIMIT|COMMAND LENGTH LIMIT|BARE NEWLINE) `)
+	postscreenHangupLine                = regexp.MustCompile(`^HANGUP `)
 	postscreenAccessListLine            = regexp.MustCompile(`^(ALLOWLISTED|WHITELISTED|DENYLISTED|BLACKLISTED) `)
 )
 
@@ -296,6 +298,8 @@ func (e *PostfixExporter) collectPostscreenLog(line, remainder, level string) {
 		addToHistogram(e.postscreenDNSBLRank, dnsblMatches[1], "postscreen DNSBL rank")
 	} else if rejectMatches := postscreenRejectLine.FindStringSubmatch(remainder); rejectMatches != nil {
 		e.postscreenRejects.WithLabelValues(rejectMatches[1]).Inc()
+	} else if postscreenHangupLine.MatchString(remainder) {
+		e.postscreenHangups.Inc()
 	} else if testMatches := postscreenTestLine.FindStringSubmatch(remainder); testMatches != nil {
 		test := strings.ReplaceAll(strings.ReplaceAll(testMatches[1], "-", "_"), " ", "_")
 		e.postscreenTests.WithLabelValues(test).Inc()
@@ -698,6 +702,12 @@ func (e *PostfixExporter) init() {
 				ConstLabels: constLabels,
 			},
 			[]string{"test"})
+		e.postscreenHangups = prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace:   "postfix",
+			Name:        "postscreen_hangups_total",
+			Help:        "Total client disconnects reported by postscreen while testing.",
+			ConstLabels: constLabels,
+		})
 		e.postscreenAccessList = prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace:   "postfix",
@@ -787,6 +797,7 @@ func (e *PostfixExporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- e.postscreenDNSBLRank.Desc()
 	e.postscreenRejects.Describe(ch)
 	e.postscreenTests.Describe(ch)
+	ch <- e.postscreenHangups.Desc()
 	e.postscreenAccessList.Describe(ch)
 }
 
@@ -863,5 +874,6 @@ func (e *PostfixExporter) Collect(ch chan<- prometheus.Metric) {
 	ch <- e.postscreenDNSBLRank
 	e.postscreenRejects.Collect(ch)
 	e.postscreenTests.Collect(ch)
+	ch <- e.postscreenHangups
 	e.postscreenAccessList.Collect(ch)
 }
