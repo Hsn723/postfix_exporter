@@ -36,6 +36,8 @@ type args struct {
 	postscreenTests        int
 	postscreenHangups      int
 	postscreenAccessList   int
+	psdnsblRankSampleCount uint64
+	psdnsblRankSampleSum   float64
 }
 
 type testCase struct {
@@ -67,6 +69,7 @@ func testPostfixExporter_CollectFromLogline(t *testing.T, tt testCase) {
 	assertCounterEquals(t, e.postscreenTests, tt.args.postscreenTests, "Wrong number of postscreen test failures")
 	assertCounterEquals(t, e.postscreenHangups, tt.args.postscreenHangups, "Wrong number of postscreen hangups")
 	assertCounterEquals(t, e.postscreenAccessList, tt.args.postscreenAccessList, "Wrong number of postscreen access list events")
+	assertHistogramEquals(t, e.postscreenDNSBLRank, tt.args.psdnsblRankSampleCount, tt.args.psdnsblRankSampleSum, "Wrong DNSBL rank histogram")
 	assertCounterVecMetricsEquals(t, e.unsupportedLogEntries, tt.args.unsupportedLogEntries, "Wrong number of unsupportedLogEntries")
 }
 
@@ -225,6 +228,8 @@ func TestPostfixExporter_CollectFromLogline(t *testing.T) {
 				postscreenRejects:  1,
 				postscreenTests:    1,
 				postscreenHangups:  1,
+				psdnsblRankSampleCount: 1,
+				psdnsblRankSampleSum:   3,
 			},
 		},
 		{
@@ -383,4 +388,17 @@ func assertCounterVecMetricsEquals(t *testing.T, counter *prometheus.CounterVec,
 		res = append(res, cm)
 	}
 	assert.ElementsMatch(t, expected, res, message)
+}
+
+func assertHistogramEquals(t *testing.T, hist prometheus.Histogram, expectedCount uint64, expectedSum float64, message string) {
+	t.Helper()
+
+	metric := &io_prometheus_client.Metric{}
+	err := hist.Write(metric)
+	assert.NoError(t, err)
+
+	if assert.NotNil(t, metric.Histogram) {
+		assert.Equal(t, expectedCount, metric.Histogram.GetSampleCount(), message)
+		assert.InDelta(t, expectedSum, metric.Histogram.GetSampleSum(), 0.0001, message)
+	}
 }
