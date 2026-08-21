@@ -711,7 +711,7 @@ func (e *PostfixExporter) init() {
 		e.postscreenAccessList = prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace:   "postfix",
-				Name:        "postscreen_access_list_total",
+				Name:        "postscreen_access_list_matches_total",
 				Help:        "Total number of clients allow/deny-listed by postscreen (ALLOWLISTED/WHITELISTED/DENYLISTED/BLACKLISTED).",
 				ConstLabels: constLabels,
 			},
