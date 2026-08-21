@@ -78,13 +78,14 @@ type PostfixExporter struct {
 
 	showq *showq.Showq
 
-	postscreenConnects   prometheus.Counter
-	postscreenPasses     *prometheus.CounterVec
-	postscreenDNSBLRank  prometheus.Histogram
-	postscreenRejects    *prometheus.CounterVec
-	postscreenTests      *prometheus.CounterVec
-	postscreenHangups    prometheus.Counter
-	postscreenAccessList *prometheus.CounterVec
+	postscreenConnects         prometheus.Counter
+	postscreenConnectsRejected *prometheus.CounterVec
+	postscreenPasses           *prometheus.CounterVec
+	postscreenDNSBLRank        prometheus.Histogram
+	postscreenRejects          *prometheus.CounterVec
+	postscreenTests            *prometheus.CounterVec
+	postscreenHangups          prometheus.Counter
+	postscreenAccessList       *prometheus.CounterVec
 
 	bounceLabels     []string
 	cleanupLabels    []string
@@ -124,6 +125,7 @@ var (
 	bounceNonDeliveryLine               = regexp.MustCompile(`: sender non-delivery notification: `)
 	postscreenPassLine                  = regexp.MustCompile(`^PASS (NEW|OLD) `)
 	postscreenDNSBLLine                 = regexp.MustCompile(`^DNSBL rank (\d+) for `)
+	postscreenConnectRejectLine         = regexp.MustCompile(`^NOQUEUE: reject: CONNECT from \S+: (.+)$`)
 	postscreenRejectLine                = regexp.MustCompile(`^NOQUEUE: reject: RCPT from \S+: ([0-9]+) `)
 	postscreenTestLine                  = regexp.MustCompile(`^(PREGREET|NON-SMTP COMMAND|COMMAND PIPELINING|COMMAND TIME LIMIT|COMMAND COUNT LIMIT|COMMAND LENGTH LIMIT|BARE NEWLINE) `)
 	postscreenHangupLine                = regexp.MustCompile(`^HANGUP `)
@@ -292,6 +294,8 @@ func (e *PostfixExporter) collectVirtualLog(line, remainder, level string) {
 func (e *PostfixExporter) collectPostscreenLog(line, remainder, level string) {
 	if strings.HasPrefix(remainder, "CONNECT from ") {
 		e.postscreenConnects.Inc()
+	} else if rejectMatches := postscreenConnectRejectLine.FindStringSubmatch(remainder); rejectMatches != nil {
+		e.postscreenConnectsRejected.WithLabelValues(rejectMatches[1]).Inc()
 	} else if passMatches := postscreenPassLine.FindStringSubmatch(remainder); passMatches != nil {
 		e.postscreenPasses.WithLabelValues(strings.ToLower(passMatches[1])).Inc()
 	} else if dnsblMatches := postscreenDNSBLLine.FindStringSubmatch(remainder); dnsblMatches != nil {
@@ -671,6 +675,14 @@ func (e *PostfixExporter) init() {
 			Help:        "Total number of connections handled by postscreen.",
 			ConstLabels: constLabels,
 		})
+		e.postscreenConnectsRejected = prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace:   "postfix",
+				Name:        "postscreen_connects_rejected_total",
+				Help:        "Total number of connections rejected by postscreen, by reject reason.",
+				ConstLabels: constLabels,
+			},
+			[]string{"reason"})
 		e.postscreenPasses = prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace:   "postfix",
@@ -793,6 +805,7 @@ func (e *PostfixExporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- e.bounceNonDelivery.Desc()
 	ch <- e.virtualDelivered.Desc()
 	ch <- e.postscreenConnects.Desc()
+	e.postscreenConnectsRejected.Describe(ch)
 	e.postscreenPasses.Describe(ch)
 	ch <- e.postscreenDNSBLRank.Desc()
 	e.postscreenRejects.Describe(ch)
@@ -870,6 +883,7 @@ func (e *PostfixExporter) Collect(ch chan<- prometheus.Metric) {
 	ch <- e.bounceNonDelivery
 	ch <- e.virtualDelivered
 	ch <- e.postscreenConnects
+	e.postscreenConnectsRejected.Collect(ch)
 	e.postscreenPasses.Collect(ch)
 	ch <- e.postscreenDNSBLRank
 	e.postscreenRejects.Collect(ch)

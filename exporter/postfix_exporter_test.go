@@ -18,26 +18,28 @@ func stringPtr(s string) *string {
 }
 
 type args struct {
-	line                   []string
-	unsupportedLogEntries  []testCounterMetric
-	removedCount           int
-	expiredCount           int
-	saslFailedCount        int
-	outgoingTLS            int
-	smtpdMessagesProcessed int
-	smtpMessagesProcessed  int
-	smtpDeferred           int
-	smtpBounced            int
-	bounceNonDelivery      int
-	virtualDelivered       int
-	postscreenConnects     int
-	postscreenPasses       int
-	postscreenRejects      int
-	postscreenTests        int
-	postscreenHangups      int
-	postscreenAccessList   int
-	psdnsblRankSampleCount uint64
-	psdnsblRankSampleSum   float64
+	line                       []string
+	unsupportedLogEntries      []testCounterMetric
+	removedCount               int
+	expiredCount               int
+	saslFailedCount            int
+	outgoingTLS                int
+	smtpdMessagesProcessed     int
+	smtpMessagesProcessed      int
+	smtpDeferred               int
+	smtpBounced                int
+	bounceNonDelivery          int
+	virtualDelivered           int
+	postscreenConnects         int
+	postscreenConnectsRejected int
+	postscreenConnectRejects   []testCounterMetric
+	postscreenPasses           int
+	postscreenRejects          int
+	postscreenTests            int
+	postscreenHangups          int
+	postscreenAccessList       int
+	psdnsblRankSampleCount     uint64
+	psdnsblRankSampleSum       float64
 }
 
 type testCase struct {
@@ -64,6 +66,8 @@ func testPostfixExporter_CollectFromLogline(t *testing.T, tt testCase) {
 	assertCounterEquals(t, e.bounceNonDelivery, tt.args.bounceNonDelivery, "Wrong number of non delivery notifications")
 	assertCounterEquals(t, e.virtualDelivered, tt.args.virtualDelivered, "Wrong number of delivered mails")
 	assertCounterEquals(t, e.postscreenConnects, tt.args.postscreenConnects, "Wrong number of postscreen connects")
+	assertCounterEquals(t, e.postscreenConnectsRejected, tt.args.postscreenConnectsRejected, "Wrong number of postscreen connect rejects")
+	assertCounterVecMetricsEquals(t, e.postscreenConnectsRejected, tt.args.postscreenConnectRejects, "Wrong postscreen connect reject reasons")
 	assertCounterEquals(t, e.postscreenPasses, tt.args.postscreenPasses, "Wrong number of postscreen passes")
 	assertCounterEquals(t, e.postscreenRejects, tt.args.postscreenRejects, "Wrong number of postscreen rejects")
 	assertCounterEquals(t, e.postscreenTests, tt.args.postscreenTests, "Wrong number of postscreen test failures")
@@ -216,6 +220,9 @@ func TestPostfixExporter_CollectFromLogline(t *testing.T) {
 			args: args{
 				line: []string{
 					"Feb 24 16:18:40 letterman postfix/postscreen[1234]: CONNECT from [1.2.3.4]:5678 to [5.6.7.8]:25",
+					"Feb 24 16:18:40 letterman postfix/postscreen[1234]: NOQUEUE: reject: CONNECT from [1.2.3.4]:5678: too many connections",
+					"Feb 24 16:18:40 letterman postfix/postscreen[1234]: NOQUEUE: reject: CONNECT from [1.2.3.4]:5678: all screening ports busy",
+					"Feb 24 16:18:40 letterman postfix/postscreen[1234]: NOQUEUE: reject: CONNECT from [1.2.3.4]:5678: all server ports busy",
 					"Feb 24 16:18:40 letterman postfix/postscreen[1234]: PASS NEW [1.2.3.4]:5678",
 					"Feb 24 16:18:40 letterman postfix/postscreen[1234]: PASS OLD [9.8.7.6]:1234",
 					"Feb 24 16:18:40 letterman postfix/postscreen[1234]: DNSBL rank 3 for [1.2.3.4]:5678",
@@ -223,11 +230,17 @@ func TestPostfixExporter_CollectFromLogline(t *testing.T) {
 					"Feb 24 16:18:40 letterman postfix/postscreen[1234]: HANGUP after 2.5 from [1.2.3.4]:5678 in tests after SMTP handshake",
 					"Feb 24 16:18:40 letterman postfix/postscreen[1234]: NOQUEUE: reject: RCPT from [1.2.3.4]:5678: 550 5.7.1 Service unavailable; client [1.2.3.4] blocked using zen.spamhaus.org; from=<a@b.com> to=<c@d.com> proto=ESMTP helo=<x>",
 				},
-				postscreenConnects: 1,
-				postscreenPasses:   2,
-				postscreenRejects:  1,
-				postscreenTests:    1,
-				postscreenHangups:  1,
+				postscreenConnects:         1,
+				postscreenConnectsRejected: 3,
+				postscreenConnectRejects: []testCounterMetric{
+					{Label: []*io_prometheus_client.LabelPair{{Name: stringPtr("reason"), Value: stringPtr("too many connections")}}, CounterValue: 1},
+					{Label: []*io_prometheus_client.LabelPair{{Name: stringPtr("reason"), Value: stringPtr("all screening ports busy")}}, CounterValue: 1},
+					{Label: []*io_prometheus_client.LabelPair{{Name: stringPtr("reason"), Value: stringPtr("all server ports busy")}}, CounterValue: 1},
+				},
+				postscreenPasses:       2,
+				postscreenRejects:      1,
+				postscreenTests:        1,
+				postscreenHangups:      1,
 				psdnsblRankSampleCount: 1,
 				psdnsblRankSampleSum:   3,
 			},
