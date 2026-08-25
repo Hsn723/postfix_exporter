@@ -15,7 +15,7 @@ permissions:
   security-events: write
 jobs:
   verify:
-    uses: hsn723/actions/.github/workflows/verify.yml@57366a300d9a0523621af11c2efcde2fdcf16aa3 # v1.0.41
+    uses: hsn723/actions/.github/workflows/verify.yml@4281946d97b73d45fcb15360e18ecdc4aeeb3dae # v1.0.42
     secrets: inherit
     with:
       lint-pre: |
