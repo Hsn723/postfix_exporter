@@ -12,7 +12,7 @@ permissions:
   attestations: write
 jobs:
   release:
-    uses: hsn723/actions/.github/workflows/helm-release.yml@ff0eb24529ec1fa062dca834a74a7a37738d7ce1 # v1.0.43
+    uses: hsn723/actions/.github/workflows/helm-release.yml@7e09dd3503c2a673762de2853f0889dc39330a67 # v1.0.44
     secrets: inherit
     with:
       upload_as_oci: true
