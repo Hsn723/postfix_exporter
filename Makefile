@@ -1,14 +1,15 @@
 LDFLAGS = -ldflags "-s -w"
 BINDIR = $(shell pwd)/bin
 YQ = $(BINDIR)/yq
+SUDO = $(shell if [ "$$(id -u)" -ne 0 ]; then echo "sudo"; fi)
 
 .PHONY: libsystemd-dev
 libsystemd-dev:
-	@dpkg -s $@ >/dev/null 2>&1 || sudo apt-get update && sudo apt-get install -y --no-install-recommends $@
+	@dpkg -s $@ >/dev/null 2>&1 || $(SUDO) apt-get update && $(SUDO) apt-get install -y --no-install-recommends $@
 
 .PHONY: gcc-aarch64-linux-gnu
 gcc-aarch64-linux-gnu:
-	@dpkg -s $@ >/dev/null 2>&1 || sudo apt-get update && sudo apt-get install -y $@
+	@dpkg -s $@ >/dev/null 2>&1 || $(SUDO) apt-get update && $(SUDO) apt-get install -y $@
 
 .PHONY: test
 test: libsystemd-dev
