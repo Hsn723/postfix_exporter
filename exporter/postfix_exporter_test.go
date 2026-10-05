@@ -30,6 +30,7 @@ type args struct {
 	smtpConnectionRefused      int
 	smtpBounced                int
 	bounceNonDelivery          int
+	bounceDelivery             int
 	virtualDelivered           int
 	postscreenConnects         int
 	postscreenConnectsRejected int
@@ -66,6 +67,7 @@ func testPostfixExporter_CollectFromLogline(t *testing.T, tt testCase) {
 	assertCounterEquals(t, e.smtpBouncedDSN, tt.args.smtpBounced, "Wrong number of smtp bounced")
 	assertCounterEquals(t, e.smtpConnectionRefused, tt.args.smtpConnectionRefused, "Wrong number of smtp connection refused")
 	assertCounterEquals(t, e.bounceNonDelivery, tt.args.bounceNonDelivery, "Wrong number of non delivery notifications")
+	assertCounterEquals(t, e.bounceDelivery, tt.args.bounceDelivery, "Wrong number of delivery status notifications")
 	assertCounterEquals(t, e.virtualDelivered, tt.args.virtualDelivered, "Wrong number of delivered mails")
 	assertCounterEquals(t, e.postscreenConnects, tt.args.postscreenConnects, "Wrong number of postscreen connects")
 	assertCounterEquals(t, e.postscreenConnectsRejected, tt.args.postscreenConnectsRejected, "Wrong number of postscreen connect rejects")
@@ -346,6 +348,15 @@ func TestPostfixExporter_CollectFromLogline(t *testing.T) {
 					"Feb 11 16:49:24 letterman postfix/smtp[8204]: connect to example.com[127.0.0.1]:25: Connection refused",
 				},
 				smtpConnectionRefused: 1,
+			},
+		},
+		{
+			name: "Testing bounce delivery status notification",
+			args: args{
+				line: []string{
+					"Feb 11 16:49:24 letterman postfix/bounce[8204]: AAB4D259B1: sender delivery status notification: 5DE184083C",
+				},
+				bounceDelivery: 1,
 			},
 		},
 	}
