@@ -35,6 +35,7 @@ type PostfixExporter struct {
 	bounceNonDelivery prometheus.Counter
 
 	smtpConnectionTimedOut prometheus.Counter
+	smtpConnectionRefused  prometheus.Counter
 	// same as smtpProcesses{status=deferred}, kept for compatibility
 	smtpStatusDeferred prometheus.Counter
 	// should be the same as smtpProcesses{status=deferred}, kept for compatibility, but this doesn't work !
@@ -115,6 +116,7 @@ var (
 	smtpDSNLine                         = regexp.MustCompile(`, dsn=(\d\.\d+\.\d+)`)
 	smtpTLSLine                         = regexp.MustCompile(`^(\S+) TLS connection established to \S+: (\S+) with cipher (\S+) \((\d+)/(\d+) bits\)`)
 	smtpConnectionTimedOut              = regexp.MustCompile(`^connect\s+to\s+(.*)\[(.*)\]:(\d+):\s+(Connection timed out)$`)
+	smtpConnectionRefused               = regexp.MustCompile(`connect\s+to\s+(.*)\[(.*)\]:(\d+):\s+(Connection refused)$`)
 	smtpdFCrDNSErrorsLine               = regexp.MustCompile(`^warning: hostname \S+ does not resolve to address `)
 	smtpdProcessesSASLLine              = regexp.MustCompile(`: client=.*, sasl_method=(\S+)`)
 	smtpdRejectsLine                    = regexp.MustCompile(`^NOQUEUE: reject: RCPT from \S+: ([0-9]+) `)
@@ -219,6 +221,8 @@ func (e *PostfixExporter) collectSMTPLog(line, remainder, level string) {
 		e.smtpTLSConnects.WithLabelValues(smtpTLSMatches[1:]...).Inc()
 	} else if connectionTimedOutMatches := smtpConnectionTimedOut.FindStringSubmatch(remainder); connectionTimedOutMatches != nil {
 		e.smtpConnectionTimedOut.Inc()
+	} else if connectionRefusedMatches := smtpConnectionRefused.FindStringSubmatch(remainder); connectionRefusedMatches != nil {
+		e.smtpConnectionRefused.Inc()
 	} else {
 		e.addToUnsupportedLine(line, "smtp", level)
 	}
@@ -578,6 +582,12 @@ func (e *PostfixExporter) init() {
 			Help:        "Total number of messages that have been deferred on SMTP.",
 			ConstLabels: constLabels,
 		})
+		e.smtpConnectionRefused = prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace:   "postfix",
+			Name:        "smtp_connection_refused_total",
+			Help:        "Total number of messages that have been refused on SMTP.",
+			ConstLabels: constLabels,
+		})
 		e.smtpdConnects = prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace:   "postfix",
 			Name:        "smtpd_connects_total",
@@ -801,6 +811,7 @@ func (e *PostfixExporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- e.smtpStatusDeferred.Desc()
 	e.unsupportedLogEntries.Describe(ch)
 	e.smtpConnectionTimedOut.Describe(ch)
+	e.smtpConnectionRefused.Describe(ch)
 	e.opendkimSignatureAdded.Describe(ch)
 	ch <- e.bounceNonDelivery.Desc()
 	ch <- e.virtualDelivered.Desc()
@@ -879,6 +890,7 @@ func (e *PostfixExporter) Collect(ch chan<- prometheus.Metric) {
 	ch <- e.smtpStatusDeferred
 	e.unsupportedLogEntries.Collect(ch)
 	ch <- e.smtpConnectionTimedOut
+	ch <- e.smtpConnectionRefused
 	e.opendkimSignatureAdded.Collect(ch)
 	ch <- e.bounceNonDelivery
 	ch <- e.virtualDelivered
