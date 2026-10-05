@@ -32,9 +32,11 @@ import (
 type PostfixExporter struct {
 	qmgrInsertsSize   prometheus.Histogram
 	virtualDelivered  prometheus.Counter
+	bounceDelivery    prometheus.Counter
 	bounceNonDelivery prometheus.Counter
 
 	smtpConnectionTimedOut prometheus.Counter
+	smtpConnectionRefused  prometheus.Counter
 	// same as smtpProcesses{status=deferred}, kept for compatibility
 	smtpStatusDeferred prometheus.Counter
 	// should be the same as smtpProcesses{status=deferred}, kept for compatibility, but this doesn't work !
@@ -115,6 +117,7 @@ var (
 	smtpDSNLine                         = regexp.MustCompile(`, dsn=(\d\.\d+\.\d+)`)
 	smtpTLSLine                         = regexp.MustCompile(`^(\S+) TLS connection established to \S+: (\S+) with cipher (\S+) \((\d+)/(\d+) bits\)`)
 	smtpConnectionTimedOut              = regexp.MustCompile(`^connect\s+to\s+(.*)\[(.*)\]:(\d+):\s+(Connection timed out)$`)
+	smtpConnectionRefused               = regexp.MustCompile(`connect\s+to\s+(.*)\[(.*)\]:(\d+):\s+(Connection refused)$`)
 	smtpdFCrDNSErrorsLine               = regexp.MustCompile(`^warning: hostname \S+ does not resolve to address `)
 	smtpdProcessesSASLLine              = regexp.MustCompile(`: client=.*, sasl_method=(\S+)`)
 	smtpdRejectsLine                    = regexp.MustCompile(`^NOQUEUE: reject: RCPT from \S+: ([0-9]+) `)
@@ -123,6 +126,7 @@ var (
 	smtpdTLSLine                        = regexp.MustCompile(`^(\S+) TLS connection established from \S+: (\S+) with cipher (\S+) \((\d+)/(\d+) bits\)`)
 	opendkimSignatureAdded              = regexp.MustCompile(`^[\w\d]+: DKIM-Signature field added \(s=(\w+), d=(.*)\)$`)
 	bounceNonDeliveryLine               = regexp.MustCompile(`: sender non-delivery notification: `)
+	bounceDeliveryLine                  = regexp.MustCompile(`: sender delivery status notification: `)
 	postscreenPassLine                  = regexp.MustCompile(`^PASS (NEW|OLD) `)
 	postscreenDNSBLLine                 = regexp.MustCompile(`^DNSBL rank (\d+) for `)
 	postscreenConnectRejectLine         = regexp.MustCompile(`^NOQUEUE: reject: CONNECT from \S+: (.+)$`)
@@ -219,6 +223,8 @@ func (e *PostfixExporter) collectSMTPLog(line, remainder, level string) {
 		e.smtpTLSConnects.WithLabelValues(smtpTLSMatches[1:]...).Inc()
 	} else if connectionTimedOutMatches := smtpConnectionTimedOut.FindStringSubmatch(remainder); connectionTimedOutMatches != nil {
 		e.smtpConnectionTimedOut.Inc()
+	} else if connectionRefusedMatches := smtpConnectionRefused.FindStringSubmatch(remainder); connectionRefusedMatches != nil {
+		e.smtpConnectionRefused.Inc()
 	} else {
 		e.addToUnsupportedLine(line, "smtp", level)
 	}
@@ -275,12 +281,13 @@ func (e *PostfixExporter) collectSMTPdLog(line, remainder, level string) {
 }
 
 func (e *PostfixExporter) collectBounceLog(line, remainder, level string) {
-	bounceMatches := bounceNonDeliveryLine.FindStringSubmatch(remainder)
-	if bounceMatches == nil {
+	if ndnMatches := bounceNonDeliveryLine.FindStringSubmatch(remainder); ndnMatches != nil {
+		e.bounceNonDelivery.Inc()
+	} else if dsnMatches := bounceDeliveryLine.FindStringSubmatch(remainder); dsnMatches != nil {
+		e.bounceDelivery.Inc()
+	} else {
 		e.addToUnsupportedLine(line, "postfix", level)
-		return
 	}
-	e.bounceNonDelivery.Inc()
 }
 
 func (e *PostfixExporter) collectVirtualLog(line, remainder, level string) {
@@ -578,6 +585,12 @@ func (e *PostfixExporter) init() {
 			Help:        "Total number of messages that have been deferred on SMTP.",
 			ConstLabels: constLabels,
 		})
+		e.smtpConnectionRefused = prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace:   "postfix",
+			Name:        "smtp_connection_refused_total",
+			Help:        "Total number of messages that have been refused on SMTP.",
+			ConstLabels: constLabels,
+		})
 		e.smtpdConnects = prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace:   "postfix",
 			Name:        "smtpd_connects_total",
@@ -661,6 +674,12 @@ func (e *PostfixExporter) init() {
 			Namespace:   "postfix",
 			Name:        "bounce_non_delivery_notification_total",
 			Help:        "Total number of non delivery notification sent by bounce.",
+			ConstLabels: constLabels,
+		})
+		e.bounceDelivery = prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace:   "postfix",
+			Name:        "bounce_delivery_status_notification_total",
+			Help:        "Total number of delivery status notification sent by bounce.",
 			ConstLabels: constLabels,
 		})
 		e.virtualDelivered = prometheus.NewCounter(prometheus.CounterOpts{
@@ -801,8 +820,10 @@ func (e *PostfixExporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- e.smtpStatusDeferred.Desc()
 	e.unsupportedLogEntries.Describe(ch)
 	e.smtpConnectionTimedOut.Describe(ch)
+	e.smtpConnectionRefused.Describe(ch)
 	e.opendkimSignatureAdded.Describe(ch)
 	ch <- e.bounceNonDelivery.Desc()
+	ch <- e.bounceDelivery.Desc()
 	ch <- e.virtualDelivered.Desc()
 	ch <- e.postscreenConnects.Desc()
 	e.postscreenConnectsRejected.Describe(ch)
@@ -879,8 +900,10 @@ func (e *PostfixExporter) Collect(ch chan<- prometheus.Metric) {
 	ch <- e.smtpStatusDeferred
 	e.unsupportedLogEntries.Collect(ch)
 	ch <- e.smtpConnectionTimedOut
+	ch <- e.smtpConnectionRefused
 	e.opendkimSignatureAdded.Collect(ch)
 	ch <- e.bounceNonDelivery
+	ch <- e.bounceDelivery
 	ch <- e.virtualDelivered
 	ch <- e.postscreenConnects
 	e.postscreenConnectsRejected.Collect(ch)
