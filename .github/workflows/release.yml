@@ -19,3 +19,4 @@ jobs:
         make libsystemd-dev
         make gcc-aarch64-linux-gnu
       upload-image-sbom: false
+      disable-sudo: false
