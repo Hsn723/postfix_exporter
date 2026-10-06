@@ -8,6 +8,6 @@ permissions:
   contents: read
 jobs:
   lint-test:
-    uses: hsn723/actions/.github/workflows/helm-lint.yml@8513fd44855c269a7c10144d59cf6fae60fa4702 # v1.0.46
+    uses: hsn723/actions/.github/workflows/helm-lint.yml@47eeeef281da373b713e33dee8f0696a7c83e1c0 # v1.0.47
     with:
       helm_extra_set_args: "--set=deployment.extraArgs={--no-postfix.logfile_must_exist}"
