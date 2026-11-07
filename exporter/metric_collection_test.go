@@ -3,6 +3,7 @@ package exporter
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"sync"
 	"testing"
@@ -73,7 +74,7 @@ const removedLine = "Feb 11 16:49:24 letterman postfix/qmgr[8204]: AAB4D259B1: r
 
 func TestStartMetricCollectionRetriesTransientErrors(t *testing.T) {
 	setRetryDelays(t, time.Millisecond, 4*time.Millisecond)
-	transient := errors.New("failed to initialize log stream: 502 Bad Gateway")
+	transient := fmt.Errorf("%w: 502 Bad Gateway", logsource.ErrLogStreamUnavailable)
 	src := &scriptedLogSource{results: []readResult{
 		{err: transient},
 		{err: transient},
@@ -106,7 +107,7 @@ func TestStartMetricCollectionReportsDownWhileRetrying(t *testing.T) {
 	setRetryDelays(t, time.Hour, time.Hour)
 	src := &scriptedLogSource{results: []readResult{
 		{line: removedLine},
-		{err: errors.New("stream lost")},
+		{err: fmt.Errorf("%w: stream lost", logsource.ErrLogStreamUnavailable)},
 	}}
 	e := NewPostfixExporter(nil, src, false)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -119,26 +120,35 @@ func TestStartMetricCollectionReportsDownWhileRetrying(t *testing.T) {
 	}, 5*time.Second, time.Millisecond, "postfix_up should be 0 while the log source fails")
 }
 
-func TestStartMetricCollectionStopsAtEOF(t *testing.T) {
+func TestStartMetricCollectionStopsOnOtherErrors(t *testing.T) {
 	setRetryDelays(t, time.Millisecond, 4*time.Millisecond)
-	src := &scriptedLogSource{results: []readResult{
-		{line: removedLine},
-		{err: io.EOF},
-		{line: removedLine},
-	}}
-	e := NewPostfixExporter(nil, src, false)
-	done := make(chan struct{})
-	go func() {
-		e.StartMetricCollection(context.Background())
-		close(done)
-	}()
+	// Only errors wrapping ErrLogStreamUnavailable are retried: other sources may not
+	// recover (the systemd source closes its journal before returning an error).
+	for name, err := range map[string]error{
+		"EOF":   io.EOF,
+		"other": errors.New("sd_journal.wait returned -5"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			src := &scriptedLogSource{results: []readResult{
+				{line: removedLine},
+				{err: err},
+				{line: removedLine},
+			}}
+			e := NewPostfixExporter(nil, src, false)
+			done := make(chan struct{})
+			go func() {
+				e.StartMetricCollection(context.Background())
+				close(done)
+			}()
 
-	select {
-	case <-done:
-	case <-time.After(5 * time.Second):
-		t.Fatal("collection should stop at the end of the log")
+			select {
+			case <-done:
+			case <-time.After(5 * time.Second):
+				t.Fatal("collection should stop")
+			}
+			assert.Equal(t, 2, src.readCount())
+			assert.Equal(t, 1.0, metricValue(t, e.qmgrRemoves))
+			assert.Equal(t, 0.0, metricValue(t, e.postfixUp.WithLabelValues("scripted")))
+		})
 	}
-	assert.Equal(t, 2, src.readCount())
-	assert.Equal(t, 1.0, metricValue(t, e.qmgrRemoves))
-	assert.Equal(t, 0.0, metricValue(t, e.postfixUp.WithLabelValues("scripted")))
 }

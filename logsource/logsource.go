@@ -12,6 +12,10 @@ import (
 
 var (
 	SystemdNoMoreEntries = errors.New("No more journal entries") // nolint:staticcheck
+
+	// ErrLogStreamUnavailable is wrapped by a Read error after which the next Read may
+	// succeed: the log source reopens its stream itself, so the reader should retry.
+	ErrLogStreamUnavailable = errors.New("log stream unavailable")
 )
 
 // A LogSourceFactory provides a repository of log sources that can be

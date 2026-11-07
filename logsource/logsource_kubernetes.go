@@ -295,9 +295,10 @@ func (s *KubernetesLogSource) Path() string {
 }
 
 func (s *KubernetesLogSource) Read(ctx context.Context) (string, error) {
-	// Ensure log stream is initialized
+	// Ensure log stream is initialized. If that fails (the API server or the kubelet is
+	// unreachable), the stream stays unset and the next Read tries again.
 	if err := s.initializeLogStream(ctx); err != nil {
-		return "", err
+		return "", fmt.Errorf("%w: %w", ErrLogStreamUnavailable, err)
 	}
 	select {
 	case <-ctx.Done():

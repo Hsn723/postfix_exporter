@@ -16,7 +16,6 @@ package exporter
 import (
 	"context"
 	"errors"
-	"io"
 	"log/slog"
 	"regexp"
 	"slices"
@@ -856,13 +855,13 @@ func (e *PostfixExporter) StartMetricCollection(ctx context.Context) {
 	for {
 		line, err := e.logSrc.Read(ctx)
 		if err != nil && err != logsource.SystemdNoMoreEntries {
-			if errors.Is(err, io.EOF) || ctx.Err() != nil {
+			if !errors.Is(err, logsource.ErrLogStreamUnavailable) || ctx.Err() != nil {
 				slog.Error("Couldn't read log source.", "source", e.logSrc.Path(), "error", err.Error())
 				return
 			}
-			// Other errors can be transient: the Kubernetes source fails to reopen its
-			// stream while the API server or kubelet is unreachable, and reopens it on the
-			// next Read. Giving up here would leave the exporter blind until restarted.
+			// The source reopens its stream on the next Read (the Kubernetes source while
+			// the API server or kubelet is unreachable). Giving up here would leave the
+			// exporter blind until restarted.
 			gauge.Set(0)
 			slog.Error("Couldn't read log source, retrying.", "source", e.logSrc.Path(), "error", err.Error(), "delay", delay)
 			select {
