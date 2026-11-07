@@ -15,16 +15,25 @@ package exporter
 
 import (
 	"context"
+	"errors"
+	"io"
 	"log/slog"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/hsn723/postfix_exporter/logsource"
 	"github.com/hsn723/postfix_exporter/showq"
 	"github.com/prometheus/client_golang/prometheus"
+)
+
+// Bounds of the backoff between attempts to read a failing log source.
+var (
+	logReadRetryMin = time.Second
+	logReadRetryMax = 30 * time.Second
 )
 
 // PostfixExporter holds the state that should be preserved by the
@@ -843,14 +852,28 @@ func (e *PostfixExporter) StartMetricCollection(ctx context.Context) {
 	gauge := e.postfixUp.WithLabelValues(e.logSrc.Path())
 	defer gauge.Set(0)
 
+	delay := logReadRetryMin
 	for {
 		line, err := e.logSrc.Read(ctx)
-		if err != nil {
-			if err != logsource.SystemdNoMoreEntries {
+		if err != nil && err != logsource.SystemdNoMoreEntries {
+			if errors.Is(err, io.EOF) || ctx.Err() != nil {
 				slog.Error("Couldn't read log source.", "source", e.logSrc.Path(), "error", err.Error())
 				return
 			}
+			// Other errors can be transient: the Kubernetes source fails to reopen its
+			// stream while the API server or kubelet is unreachable, and reopens it on the
+			// next Read. Giving up here would leave the exporter blind until restarted.
+			gauge.Set(0)
+			slog.Error("Couldn't read log source, retrying.", "source", e.logSrc.Path(), "error", err.Error(), "delay", delay)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(delay):
+			}
+			delay = min(delay*2, logReadRetryMax)
+			continue
 		}
+		delay = logReadRetryMin
 		e.CollectFromLogLine(line)
 		gauge.Set(1)
 	}
