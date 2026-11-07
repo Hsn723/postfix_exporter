@@ -15,16 +15,24 @@ package exporter
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/hsn723/postfix_exporter/logsource"
 	"github.com/hsn723/postfix_exporter/showq"
 	"github.com/prometheus/client_golang/prometheus"
+)
+
+// Bounds of the backoff between attempts to read a failing log source.
+var (
+	logReadRetryMin = time.Second
+	logReadRetryMax = 30 * time.Second
 )
 
 // PostfixExporter holds the state that should be preserved by the
@@ -844,7 +852,7 @@ func (e *PostfixExporter) StartMetricCollection(ctx context.Context) {
 	defer gauge.Set(0)
 
 	for {
-		line, err := e.logSrc.Read(ctx)
+		line, err := e.readLogLine(ctx, gauge)
 		if err != nil {
 			if err != logsource.SystemdNoMoreEntries {
 				slog.Error("Couldn't read log source.", "source", e.logSrc.Path(), "error", err.Error())
@@ -853,6 +861,29 @@ func (e *PostfixExporter) StartMetricCollection(ctx context.Context) {
 		}
 		e.CollectFromLogLine(line)
 		gauge.Set(1)
+	}
+}
+
+// readLogLine reads the next line, waiting out an unavailable log stream. The Kubernetes
+// source reopens its stream on the next Read, so giving up would leave the exporter blind
+// until restarted. Other errors are returned as they are. gauge is postfix_up for the log
+// source; it is 0 while waiting.
+func (e *PostfixExporter) readLogLine(ctx context.Context, gauge prometheus.Gauge) (string, error) {
+	delay := logReadRetryMin
+	for {
+		line, err := e.logSrc.Read(ctx)
+		if !errors.Is(err, logsource.ErrLogStreamUnavailable) || ctx.Err() != nil {
+			return line, err
+		}
+
+		gauge.Set(0)
+		slog.Warn("Log stream unavailable, retrying.", "source", e.logSrc.Path(), "error", err.Error(), "delay", delay)
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-time.After(delay):
+		}
+		delay = min(delay*2, logReadRetryMax)
 	}
 }
 
