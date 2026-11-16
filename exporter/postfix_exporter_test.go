@@ -13,6 +13,12 @@ type testCounterMetric struct {
 	CounterValue float64
 }
 
+type testHistogramMetric struct {
+	Label       []*io_prometheus_client.LabelPair
+	SampleCount uint64
+	SampleSum   float64
+}
+
 func stringPtr(s string) *string {
 	return &s
 }
@@ -29,6 +35,7 @@ type args struct {
 	smtpDeferred               int
 	smtpConnectionRefused      int
 	smtpBounced                int
+	smtpDelays                 []testHistogramMetric
 	bounceNonDelivery          int
 	bounceDelivery             int
 	virtualDelivered           int
@@ -79,6 +86,7 @@ func testPostfixExporter_CollectFromLogline(t *testing.T, tt testCase) {
 	assertCounterEquals(t, e.postscreenAccessList, tt.args.postscreenAccessList, "Wrong number of postscreen access list events")
 	assertHistogramEquals(t, e.postscreenDNSBLRank, tt.args.psdnsblRankSampleCount, tt.args.psdnsblRankSampleSum, "Wrong DNSBL rank histogram")
 	assertCounterVecMetricsEquals(t, e.unsupportedLogEntries, tt.args.unsupportedLogEntries, "Wrong number of unsupportedLogEntries")
+	assertHistogramVecMetricsEquals(t, e.smtpDelays, tt.args.smtpDelays, "Wrong number of smtp delays")
 }
 
 func TestPostfixExporter_CollectFromLogline(t *testing.T) {
@@ -193,6 +201,48 @@ func TestPostfixExporter_CollectFromLogline(t *testing.T) {
 				outgoingTLS:            0,
 				smtpdMessagesProcessed: 0,
 				smtpMessagesProcessed:  1,
+				smtpDelays: []testHistogramMetric{
+					{
+						Label: []*io_prometheus_client.LabelPair{
+							{
+								Name:  new("stage"),
+								Value: new("before_queue_manager"),
+							},
+						},
+						SampleCount: 1,
+						SampleSum:   0.1,
+					},
+					{
+						Label: []*io_prometheus_client.LabelPair{
+							{
+								Name:  new("stage"),
+								Value: new("queue_manager"),
+							},
+						},
+						SampleCount: 1,
+						SampleSum:   2017,
+					},
+					{
+						Label: []*io_prometheus_client.LabelPair{
+							{
+								Name:  new("stage"),
+								Value: new("connection_setup"),
+							},
+						},
+						SampleCount: 1,
+						SampleSum:   0.03,
+					},
+					{
+						Label: []*io_prometheus_client.LabelPair{
+							{
+								Name:  new("stage"),
+								Value: new("transmission"),
+							},
+						},
+						SampleCount: 1,
+						SampleSum:   0.05,
+					},
+				},
 			},
 		},
 		{
@@ -436,4 +486,27 @@ func assertHistogramEquals(t *testing.T, hist prometheus.Histogram, expectedCoun
 		assert.Equal(t, expectedCount, metric.Histogram.GetSampleCount(), message)
 		assert.InDelta(t, expectedSum, metric.Histogram.GetSampleSum(), 0.0001, message)
 	}
+}
+
+func assertHistogramVecMetricsEquals(t *testing.T, hist *prometheus.HistogramVec, expected []testHistogramMetric, message string) {
+	if expected == nil {
+		return
+	}
+	metricsChan := make(chan prometheus.Metric)
+	go func() {
+		hist.Collect(metricsChan)
+		close(metricsChan)
+	}()
+	var res []testHistogramMetric
+	for metric := range metricsChan {
+		metricDto := io_prometheus_client.Metric{}
+		_ = metric.Write(&metricDto)
+		hm := testHistogramMetric{
+			Label:       metricDto.Label,
+			SampleCount: metricDto.Histogram.GetSampleCount(),
+			SampleSum:   metricDto.Histogram.GetSampleSum(),
+		}
+		res = append(res, hm)
+	}
+	assert.ElementsMatch(t, expected, res, message)
 }
