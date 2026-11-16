@@ -249,10 +249,10 @@ func (e *PostfixExporter) collectSMTPStatusLog(remainder string, delays []string
 		}
 		fallthrough
 	default:
-		addToHistogramVec(e.smtpDelays, delays[2], "before_queue_manager", "")
-		addToHistogramVec(e.smtpDelays, delays[3], "queue_manager", "")
-		addToHistogramVec(e.smtpDelays, delays[4], "connection_setup", "")
-		addToHistogramVec(e.smtpDelays, delays[5], "transmission", "")
+		addToHistogramVec(e.smtpDelays, delays[2], "SMTP pdelay", "before_queue_manager")
+		addToHistogramVec(e.smtpDelays, delays[3], "SMTP adelay", "queue_manager")
+		addToHistogramVec(e.smtpDelays, delays[4], "SMTP sdelay", "connection_setup")
+		addToHistogramVec(e.smtpDelays, delays[5], "SMTP xdelay", "transmission")
 	}
 }
 
