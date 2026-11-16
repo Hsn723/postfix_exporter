@@ -10,6 +10,7 @@ permissions:
   id-token: write
   packages: write
   attestations: write
+  pull-requests: write
 jobs:
   release:
     uses: hsn723/actions/.github/workflows/release.yml@acb91ada80e04ac6cf812df86a9f3090a77d86b7 # v1.0.52
@@ -20,3 +21,4 @@ jobs:
         make gcc-aarch64-linux-gnu
       upload-image-sbom: false
       disable-sudo: false
+      chart_name: postfix-exporter
